@@ -335,9 +335,9 @@
         // SETTINGS
         const SHOW_DIAGNOSTICS = urlParams.get('showInfo') === 'true';
         const SHOW_NEXT_WEATHER = urlParams.get('nextWeather') === 'true';
-        const CURRENT_SEASON = "420WEEK";
-        const SEASON_START = "2026-04-16";
-        const SEASON_END = "2026-04-29";
+        const CURRENT_SEASON = "HALLOWEEN";
+        const SEASON_START = "2026-10-01T09:00:00Z"; // Oct 1 @ 2:00 AM PDT (09:00 UTC)
+        const SEASON_END = "2026-11-05T09:00:00Z";   // Nov 5 @ 1:00 AM PST (09:00 UTC)
         const DAY_ANCHOR = 6;
         const LOOP_MAX = 384;
 
@@ -422,7 +422,8 @@
 
         function update() {
             const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
+            // Replace: const todayStr = now.toISOString().split('T')[0];
+            const todayStr = now.toISOString();
             const rawUnix = now.getTime() / 1000;
             const totalSeconds = rawUnix / 2;
             const totalMinutes = totalSeconds;
