@@ -14,14 +14,26 @@
             --text-main: #232323;
         }
 
+        html,
         body {
             background-color: rgba(0, 0, 0, 0);
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        body {
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: flex-end;
+            justify-content: flex-start;
+            gap: 8px;
+            box-sizing: border-box;
+            /* flex-direction and align-items are controlled dynamically via settings below */
         }
 
         .widget-main {
@@ -36,10 +48,11 @@
             display: flex;
             align-items: center;
             min-width: 260px;
+            flex-shrink: 0;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-            margin-bottom: 10px;
             transition: background 1s ease, background-position 1s ease-in-out;
             line-height: 1;
+            box-sizing: border-box;
         }
 
         /* Full Background Mode Overrides */
@@ -135,12 +148,12 @@
         }
 
         .event-bar {
-            display: flex;
+            display: none;
             gap: 0px;
             justify-content: flex-end;
             flex-wrap: wrap;
             width: 300px;
-            margin-bottom: 10px;
+            flex-shrink: 0;
         }
 
         .event-card {
@@ -163,6 +176,7 @@
         .event-card img {
             max-width: 100%;
             max-height: 100%;
+            object-fit: contain;
         }
 
         .info-box {
@@ -174,10 +188,10 @@
             padding: 0 10px;
             height: 48px;
             min-width: 200px;
+            flex-shrink: 0;
             display: none;
             align-items: center;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            margin-bottom: 8px;
             transition: background 0.5s ease;
             box-sizing: border-box;
         }
@@ -301,7 +315,7 @@
     <div id="lantern-box" class="info-box">
         <img src="icons/halloween.png" class="box-icon">
         <div class="box-content">
-            <span class="box-label">CYCLE RESETS IN:</span>
+            <span class="box-label">Cycle Ends In:</span>
             <div class="box-val-row">
                 <span id="lantern-timer" class="box-timer">00:00:00</span>
             </div>
@@ -357,6 +371,48 @@
         // URL Parameter Logic
         const urlParams = new URLSearchParams(window.location.search);
         const USE_ICONS_MODE = urlParams.get('icons') === 'true';
+
+        // ==========================================
+        // ALIGNMENT SETTINGS
+        // align:             "left", "center", or "right" (default)
+        // verticalAlignment: "top" (default) or "bottom" (reverses element order)
+        // ==========================================
+        const DEFAULT_ALIGNMENT = "right";
+        const DEFAULT_VERTICAL_ALIGNMENT = "top";
+
+        const rawAlign = urlParams.get('align') ?? DEFAULT_ALIGNMENT;
+        const alignParam = rawAlign.toLowerCase();
+
+        const rawVAlign = urlParams.get('verticalAlignment')
+            ?? urlParams.get('verticalalignment')
+            ?? urlParams.get('vAlign')
+            ?? urlParams.get('valign')
+            ?? DEFAULT_VERTICAL_ALIGNMENT;
+        const vAlignParam = rawVAlign.toLowerCase();
+
+        const horizontalMap = {
+            "left": "flex-start",
+            "center": "center",
+            "right": "flex-end"
+        };
+        const hFlexAlign = horizontalMap[alignParam] || "flex-end";
+
+        const eventBarElem = document.getElementById('event-bar');
+
+        // Apply Horizontal Alignment to Clock, Icon Bar, and Timers
+        document.body.style.alignItems = hFlexAlign;
+        eventBarElem.style.justifyContent = hFlexAlign;
+
+        // Apply Vertical Alignment (Top = standard order, Bottom = reversed order anchored at bottom)
+        if (vAlignParam === "bottom") {
+            document.body.style.flexDirection = "column-reverse";
+            document.body.style.justifyContent = "flex-start";
+            eventBarElem.style.flexWrap = "wrap-reverse";
+        } else {
+            document.body.style.flexDirection = "column";
+            document.body.style.justifyContent = "flex-start";
+            eventBarElem.style.flexWrap = "wrap";
+        }
 
         // SETTINGS
         const SHOW_DIAGNOSTICS = urlParams.get('showInfo') === 'true';
@@ -418,10 +474,10 @@
                 { name: "Cerberus", icon: "cerberus.webp", startH: 0, endH: 24, msg: "", notified: false },
                 { name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy", msg: "👣 sasquatch spotted in the fog!", notified: false },
                 { name: "Possessed Animal", icon: "posessedAnimal.png", startH: 20, endH: 1, msg: "🐾 Wildlife is acting strange...", notified: false },
-               // { name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
+                // { name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
                 { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
                 { name: "Christine", icon: "christine.webp", startH: 21, endH: 5, msg: "🚗 Phantom Car (Christine) is hunting!", notified: false },
-                { name: "Ghosts Exposed", icon: "ghost.webp", startH: 20, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
+                { name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
                 { name: "UFO Sightings", icon: "ufo.webp", phase: "UFO", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
             ]
         };
@@ -536,7 +592,6 @@
             const m = Math.floor(totalMinutes % 60);
             const decHour = h + (m / 60) + ((rawUnix % 2) / 120);
             const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-            const displayUnix = Math.floor(rawUnix);
 
             const loopData = getLoopPosition(totalHours);
             const currentRawWeather = weatherSchedule[loopData.index].weather;
@@ -652,7 +707,10 @@
         function updateEventCards(decHour, currentWeather, seasonState) {
             const bar = document.getElementById('event-bar');
             bar.innerHTML = "";
-            if (seasonState.activeSeason === "NONE") return;
+            if (seasonState.activeSeason === "NONE") {
+                bar.style.display = "none";
+                return;
+            }
 
             const activeEvents = eventLibrary[seasonState.activeSeason] || [];
             activeEvents.forEach(ev => {
@@ -684,6 +742,8 @@
                     ev.notified = false;
                 }
             });
+
+            bar.style.display = bar.children.length > 0 ? "flex" : "none";
         }
 
         function findNextSurvival(decHour, currentUnix) {
