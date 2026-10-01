@@ -128,9 +128,7 @@
         .night-mode #time-label {
             text-shadow:
                 0 0 5px rgba(255, 255, 255, 0.4),
-                /* Outer glow */
                 -1px -1px 0 #006497,
-                /* Outline */
                 1px -1px 0 #006497,
                 -1px 1px 0 #006497,
                 1px 1px 0 #006497;
@@ -175,7 +173,6 @@
             border-radius: 8px;
             padding: 0 10px;
             height: 48px;
-            /* Matched to event-card height */
             min-width: 200px;
             display: none;
             align-items: center;
@@ -335,12 +332,32 @@
         // SETTINGS
         const SHOW_DIAGNOSTICS = urlParams.get('showInfo') === 'true';
         const SHOW_NEXT_WEATHER = urlParams.get('nextWeather') === 'true';
-        const CURRENT_SEASON = "HALLOWEEN";
-        const SEASON_START = "2026-10-01T09:00:00Z";
-        const SEASON_END = "2026-11-05T09:00:00Z";
+        const FORCE_HW_WEATHER = urlParams.get('hwWeather') === 'true'; // Optional manual override via URL parameter (?hwWeather=true)
 
-        // Flip to true (or add &hwWeather=true to your OBS URL) once Rockstar enables Halloween Weather mid-month
-        const HALLOWEEN_WEATHER_ACTIVE = urlParams.get('hwWeather') === 'true' || false;
+        // SEASONS CONFIGURATION (All times in UTC ISO 8601 strings)
+        const SEASONS = {
+            "420WEEK": {
+                start: "2026-04-16T09:00:00Z",
+                end:   "2026-04-30T09:00:00Z"  // Runs through April 29, stops at weekly reset
+            },
+            "HALLOWEEN": {
+                start: "2026-10-01T09:00:00Z",
+                end:   "2026-11-05T09:00:00Z", // Runs through November 4, stops at weekly reset
+                hwPhase1: {
+                    start: "2026-10-08T09:00:00Z", // Phase 1: Normal UFO schedule (22:00 - 04:00)
+                    end:   "2026-10-26T09:00:00Z"
+                },
+                hwPhase2: {
+                    start: "2026-10-26T09:00:00Z", // Phase 2: Extended UFO schedule (19:30 - 06:30) + HW Weather
+                    end:   "2026-11-05T09:00:00Z"
+                }
+            },
+            "CHRISTMAS": {
+                start: "2026-12-17T09:00:00Z",
+                end:   "2027-01-07T09:00:00Z"
+            }
+        };
+
         const DAY_ANCHOR = 6;
         const LOOP_MAX = 384;
 
@@ -360,7 +377,7 @@
                 { name: "Stoner Survival", icon: "stonerSurvival.png", startH: 16.33, endH: 20.33, msg: "💨 Stoner Survival active!", notified: false }
             ],
             "CHRISTMAS": [
-                { name: "Yeti", icon: "yeti.png", startH: 21, endH: 6, msg: "❄️ A Yeti has been spotted!", notified: false },
+                { name: "Yeti", icon: "yeti.png", startH: 21, endH: 6, msg: "❄️️ A Yeti has been spotted!", notified: false },
                 { name: "Gooch", icon: "gooch.png", startH: 0, endH: 24, msg: "🎁 The Gooch is on the prowl!", notified: false }
             ],
             "HALLOWEEN": [
@@ -372,7 +389,7 @@
                 { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
                 { name: "Christine", icon: "christine.webp", startH: 21, endH: 5, msg: "🚗 Phantom Car (Christine) is hunting!", notified: false },
                 { name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
-                { name: "UFO Sightings", icon: "ufo.webp", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
+                { name: "UFO Sightings", icon: "ufo.webp", phase: "UFO", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
             ]
         };
 
@@ -429,6 +446,33 @@
             return { index: 0, hourInLoop: 0, remaining: 0 };
         }
 
+        function getSeasonState(todayStr) {
+            const s420 = SEASONS["420WEEK"];
+            const sHw = SEASONS["HALLOWEEN"];
+            const sXmas = SEASONS["CHRISTMAS"];
+
+            const is420 = (todayStr >= s420.start && todayStr < s420.end);
+            const isHalloween = (todayStr >= sHw.start && todayStr < sHw.end);
+            const isChristmas = (todayStr >= sXmas.start && todayStr < sXmas.end);
+
+            const isHWPhase1 = isHalloween && (todayStr >= sHw.hwPhase1.start && todayStr < sHw.hwPhase1.end);
+            const isHWPhase2 = isHalloween && ((todayStr >= sHw.hwPhase2.start && todayStr < sHw.hwPhase2.end) || FORCE_HW_WEATHER);
+
+            let activeSeason = "NONE";
+            if (is420) activeSeason = "420WEEK";
+            else if (isHalloween) activeSeason = "HALLOWEEN";
+            else if (isChristmas) activeSeason = "CHRISTMAS";
+
+            return {
+                activeSeason,
+                is420,
+                isHalloween,
+                isHWPhase1,
+                isHWPhase2,
+                isSasquatchActive: (is420 || isHalloween)
+            };
+        }
+
         function update() {
             const now = new Date();
             const todayStr = now.toISOString();
@@ -475,25 +519,23 @@
                 lastLoggedHour = h;
             }
 
-            const isSeasonWindow = (todayStr >= SEASON_START && todayStr <= SEASON_END);
-            const is420Active = (CURRENT_SEASON === "420WEEK" && isSeasonWindow);
-            const isSasquatchActive = ((CURRENT_SEASON === "420WEEK" || CURRENT_SEASON === "HALLOWEEN") && isSeasonWindow);
+            const seasonState = getSeasonState(todayStr);
 
-            document.getElementById('sasquatch-box').style.display = isSasquatchActive ? "flex" : "none";
-            document.getElementById('survival-box').style.display = is420Active ? "flex" : "none";
+            document.getElementById('sasquatch-box').style.display = seasonState.isSasquatchActive ? "flex" : "none";
+            document.getElementById('survival-box').style.display = seasonState.is420 ? "flex" : "none";
 
-            updateWeatherDisplay(loopData, h, m, todayStr);
-            updateEventCards(todayStr, decHour, currentRawWeather);
+            updateWeatherDisplay(loopData, h, m, seasonState);
+            updateEventCards(decHour, currentRawWeather, seasonState);
 
-            if (isSasquatchActive) {
+            if (seasonState.isSasquatchActive) {
                 findNextsasquatch(loopData, decHour, rawUnix, currentRawWeather);
             }
-            if (is420Active) {
+            if (seasonState.is420) {
                 findNextSurvival(decHour, rawUnix);
             }
         }
 
-        function updateWeatherDisplay(loopData, h, m, today) {
+        function updateWeatherDisplay(loopData, h, m, seasonState) {
             const widget = document.getElementById('main-widget');
             const weatherBox = document.getElementById('weather-box');
             const mainWeatherContainer = document.getElementById('main-weather-container');
@@ -504,7 +546,6 @@
 
             // Mode Logic
             if (USE_ICONS_MODE) {
-                // Current Version Logic
                 widget.classList.remove('full-bg');
                 mainWeatherContainer.style.display = "flex";
                 widget.style.backgroundImage = "url('icons/day.png'), url('icons/night.png')";
@@ -516,7 +557,6 @@
                     widget.classList.add('night-mode');
                 }
             } else {
-                // New Full-Background Mode Logic
                 widget.classList.add('full-bg');
                 mainWeatherContainer.style.display = "none";
 
@@ -542,26 +582,28 @@
             document.getElementById('next-timer').innerText = formatTimer(finalSeconds);
             document.getElementById('next-weather-icon').src = getIconPath(next.weather, isDay);
 
-            const isHalloweenWeek = (today >= SEASON_START && today <= SEASON_END);
             const totalDayMins = (h * 60) + m;
             const isHalloweenHours = (totalDayMins >= 1170 || totalDayMins < 390); // 19:30 to 06:30
 
-            if (CURRENT_SEASON === "HALLOWEEN" && isHalloweenWeek && HALLOWEEN_WEATHER_ACTIVE && isHalloweenHours) {
+            if (seasonState.isHWPhase2 && isHalloweenHours) {
                 widget.classList.add('halloween-active');
             } else {
                 widget.classList.remove('halloween-active');
             }
         }
 
-        function updateEventCards(today, decHour, currentWeather) {
+        function updateEventCards(decHour, currentWeather, seasonState) {
             const bar = document.getElementById('event-bar');
             bar.innerHTML = "";
-            if (today < SEASON_START || today > SEASON_END) return;
+            if (seasonState.activeSeason === "NONE") return;
 
-            const activeEvents = eventLibrary[CURRENT_SEASON] || [];
+            const activeEvents = eventLibrary[seasonState.activeSeason] || [];
             activeEvents.forEach(ev => {
-                const startH = (HALLOWEEN_WEATHER_ACTIVE && ev.hwStartH !== undefined) ? ev.hwStartH : ev.startH;
-                const endH = (HALLOWEEN_WEATHER_ACTIVE && ev.hwEndH !== undefined) ? ev.hwEndH : ev.endH;
+                // If event is tagged as UFO, only show during Phase 1 or Phase 2
+                if (ev.phase === "UFO" && !seasonState.isHWPhase1 && !seasonState.isHWPhase2) return;
+
+                const startH = (seasonState.isHWPhase2 && ev.hwStartH !== undefined) ? ev.hwStartH : ev.startH;
+                const endH = (seasonState.isHWPhase2 && ev.hwEndH !== undefined) ? ev.hwEndH : ev.endH;
 
                 const hourOk = (startH < endH) ? (decHour >= startH && decHour < endH) : (decHour >= startH || decHour < endH);
                 const weatherOk = !ev.reqWeather || ev.reqWeather.toLowerCase() === currentWeather.toLowerCase();
@@ -629,12 +671,7 @@
 
             box.classList.remove('event-active-status');
             let checkIdx = loopData.index;
-
-            // PRECISION FIX: Account for the time already spent in the current game hour
-            // This ensures the timer ticks down seconds, not just minutes.
-            let cumulativeWaitHours = loopData.remaining - (24 - (decHour % 24));
-            // Simplified: we start at 0 relative to "now"
-            cumulativeWaitHours = 0;
+            let cumulativeWaitHours = 0;
 
             for (let i = 0; i < weatherSchedule.length * 2; i++) {
                 let block = weatherSchedule[checkIdx % weatherSchedule.length];
