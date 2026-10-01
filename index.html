@@ -336,8 +336,11 @@
         const SHOW_DIAGNOSTICS = urlParams.get('showInfo') === 'true';
         const SHOW_NEXT_WEATHER = urlParams.get('nextWeather') === 'true';
         const CURRENT_SEASON = "HALLOWEEN";
-        const SEASON_START = "2026-10-01T09:00:00Z"; // Oct 1 @ 2:00 AM PDT (09:00 UTC)
-        const SEASON_END = "2026-11-05T09:00:00Z";   // Nov 5 @ 1:00 AM PST (09:00 UTC)
+        const SEASON_START = "2026-10-01T09:00:00Z";
+        const SEASON_END = "2026-11-05T09:00:00Z";
+
+        // Flip to true (or add &hwWeather=true to your OBS URL) once Rockstar enables Halloween Weather mid-month
+        const HALLOWEEN_WEATHER_ACTIVE = urlParams.get('hwWeather') === 'true' || false;
         const DAY_ANCHOR = 6;
         const LOOP_MAX = 384;
 
@@ -361,9 +364,14 @@
                 { name: "Gooch", icon: "gooch.png", startH: 0, endH: 24, msg: "🎁 The Gooch is on the prowl!", notified: false }
             ],
             "HALLOWEEN": [
+                { name: "Jack O' Lanterns", icon: "halloween.png", startH: 0, endH: 24, msg: "", notified: false },
+                { name: "Cerberus", icon: "cerberus.webp", startH: 0, endH: 24, msg: "", notified: false },
                 { name: "Possessed Animal", icon: "posessedAnimal.png", startH: 20, endH: 1, msg: "🐾 Wildlife is acting strange...", notified: false },
                 { name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
-                { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false }
+                { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
+                { name: "Christine", icon: "christine.webp", startH: 21, endH: 5, msg: "🚗 Phantom Car (Christine) is hunting!", notified: false },
+                { name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
+                { name: "UFO Sightings", icon: "ufo.webp", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
             ]
         };
 
@@ -530,9 +538,10 @@
             document.getElementById('next-weather-icon').src = getIconPath(next.weather, isDay);
 
             const isHalloweenWeek = (today >= SEASON_START && today <= SEASON_END);
-            const isHalloweenHours = ((h * 60) + m >= 1140 || (h * 60) + m < 480);
+            const totalDayMins = (h * 60) + m;
+            const isHalloweenHours = (totalDayMins >= 1170 || totalDayMins < 390); // 19:30 to 06:30
 
-            if (CURRENT_SEASON === "HALLOWEEN" && isHalloweenWeek && isHalloweenHours) {
+            if (CURRENT_SEASON === "HALLOWEEN" && isHalloweenWeek && HALLOWEEN_WEATHER_ACTIVE && isHalloweenHours) {
                 widget.classList.add('halloween-active');
             } else {
                 widget.classList.remove('halloween-active');
@@ -546,13 +555,16 @@
 
             const activeEvents = eventLibrary[CURRENT_SEASON] || [];
             activeEvents.forEach(ev => {
-                const hourOk = (ev.startH < ev.endH) ? (decHour >= ev.startH && decHour < ev.endH) : (decHour >= ev.startH || decHour < ev.endH);
+                const startH = (HALLOWEEN_WEATHER_ACTIVE && ev.hwStartH !== undefined) ? ev.hwStartH : ev.startH;
+                const endH = (HALLOWEEN_WEATHER_ACTIVE && ev.hwEndH !== undefined) ? ev.hwEndH : ev.endH;
+
+                const hourOk = (startH < endH) ? (decHour >= startH && decHour < endH) : (decHour >= startH || decHour < endH);
                 const weatherOk = !ev.reqWeather || ev.reqWeather.toLowerCase() === currentWeather.toLowerCase();
 
                 if (hourOk && weatherOk) {
                     const card = document.createElement('div');
                     card.className = 'event-card';
-                    card.innerHTML = `<img src="icons/${ev.icon}">`;
+                    card.innerHTML = `<img src="icons/${ev.icon}" title="${ev.name}">`;
                     bar.appendChild(card);
 
                     if (!ev.notified) {
