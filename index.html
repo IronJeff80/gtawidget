@@ -301,7 +301,7 @@
     <div id="lantern-box" class="info-box">
         <img src="icons/halloween.png" class="box-icon">
         <div class="box-content">
-            <span class="box-label">Cycle Ends In:</span>
+            <span class="box-label">CYCLE RESETS IN:</span>
             <div class="box-val-row">
                 <span id="lantern-timer" class="box-timer">00:00:00</span>
             </div>
@@ -362,6 +362,10 @@
         const SHOW_DIAGNOSTICS = urlParams.get('showInfo') === 'true';
         const SHOW_NEXT_WEATHER = urlParams.get('nextWeather') === 'true';
         const FORCE_HW_WEATHER = urlParams.get('hwWeather') === 'true';
+
+        // ShowPumpkins defaults to true unless explicitly set to false (?ShowPumpkins=false)
+        const showPumpkinsParam = urlParams.get('ShowPumpkins') ?? urlParams.get('showPumpkins');
+        const SHOW_PUMPKINS = showPumpkinsParam !== null ? showPumpkinsParam.toLowerCase() !== 'false' : true;
 
         // SEASONS CONFIGURATION (All times in UTC ISO 8601 strings)
         const SEASONS = {
@@ -568,15 +572,16 @@
             }
 
             const seasonState = getSeasonState(todayStr);
+            const showLanternBox = seasonState.isHalloween && SHOW_PUMPKINS;
 
-            document.getElementById('lantern-box').style.display = seasonState.isHalloween ? "flex" : "none";
+            document.getElementById('lantern-box').style.display = showLanternBox ? "flex" : "none";
             document.getElementById('sasquatch-box').style.display = seasonState.isSasquatchActive ? "flex" : "none";
             document.getElementById('survival-box').style.display = seasonState.is420 ? "flex" : "none";
 
             updateWeatherDisplay(loopData, h, m, seasonState);
             updateEventCards(decHour, currentRawWeather, seasonState);
 
-            if (seasonState.isHalloween) {
+            if (showLanternBox) {
                 updateLanternTimer();
             }
             if (seasonState.isSasquatchActive) {
