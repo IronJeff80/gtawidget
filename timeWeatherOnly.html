@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GTA Widget - Clock & Weather Only</title>
+    <style>
+        :root {
+            --bg-white: rgba(255, 255, 255, 0.95);
+            --bg-halloween: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 140, 0, 0.95) 100%);
+            --border-grey: rgba(64, 63, 63, 0.85);
+            --text-main: #232323;
+        }
+
+        body {
+            background-color: rgba(0, 0, 0, 0);
+            margin: 0;
+            padding: 10px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            box-sizing: border-box;
+            width: 100%;
+            /* justify-content is controlled dynamically via the ALIGNMENT setting below */
+        }
+
+        .widget-main {
+            /* Initial setup for Icon Mode */
+            background-image: url('icons/day.png'), url('icons/night.png');
+            background-position: center 0px, center 100px;
+            background-size: cover;
+            background-repeat: no-repeat;
+            border: 2px solid var(--border-grey);
+            border-radius: 12px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            min-width: 260px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            transition: background 1s ease, background-position 1s ease-in-out;
+            line-height: 1;
+            box-sizing: border-box;
+        }
+
+        /* Full Background Mode Overrides */
+        .widget-main.full-bg {
+            background-size: cover;
+            background-position: center center !important;
+        }
+
+        /* Night Mode text color override */
+        .night-mode #day-label,
+        .night-mode #time-label,
+        .night-mode #current-weather-label {
+            color: #ffffff !important;
+        }
+
+        .halloween-active {
+            background: var(--bg-halloween);
+            border-color: #ff8c00;
+        }
+
+        .weather-icon {
+            width: 64px;
+            height: 64px;
+            margin-right: 15px;
+            object-fit: contain;
+        }
+
+        .weather-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #current-weather-label {
+            font-size: 10px;
+            font-weight: 800;
+            color: #6d6d6d;
+            text-transform: uppercase;
+            margin-top: -5px;
+            white-space: nowrap;
+            max-width: 64px;
+            line-height: 1.1;
+        }
+
+        .text-stack {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            text-align: right;
+        }
+
+        #day-label {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            text-transform: uppercase;
+            line-height: 1;
+            text-shadow:
+                -1px -1px 0 rgba(255, 255, 255, 0.5),
+                1px -1px 0 rgba(255, 255, 255, 0.5),
+                -1px 1px 0 rgba(255, 255, 255, 0.5),
+                1px 1px 0 rgba(255, 255, 255, 0.5),
+                0px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #time-label {
+            font-size: 34px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-top: 4px;
+            text-shadow:
+                -1px -1px 0 rgba(255, 255, 255, 0.5),
+                1px -1px 0 rgba(255, 255, 255, 0.5),
+                -1px 1px 0 rgba(255, 255, 255, 0.5),
+                1px 1px 0 rgba(255, 255, 255, 0.5),
+                0px 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Specific glow for Night Mode */
+        .night-mode #day-label,
+        .night-mode #time-label {
+            text-shadow:
+                0 0 5px rgba(255, 255, 255, 0.4),
+                -1px -1px 0 #006497,
+                1px -1px 0 #006497,
+                -1px 1px 0 #006497,
+                1px 1px 0 #006497;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="main-widget" class="widget-main">
+        <div class="weather-container" id="main-weather-container">
+            <img id="weather-icon" src="icons/clear-day.png" class="weather-icon">
+            <div id="current-weather-label">LOADING...</div>
+        </div>
+        <div class="text-stack">
+            <div id="day-label">LOADING...</div>
+            <div id="time-label">00:00</div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const USE_ICONS_MODE = urlParams.get('icons') === 'true';
+        const FORCE_HW_WEATHER = urlParams.get('hwWeather') === 'true';
+
+        // ==========================================
+        // ALIGNMENT SETTING ("left", "center", "right")
+        // Can be set here OR via URL parameter: clockOnly.html?align=left
+        // ==========================================
+        const DEFAULT_ALIGNMENT = "left";
+        const rawAlign = urlParams.get('align') ?? DEFAULT_ALIGNMENT;
+        const alignParam = rawAlign.toLowerCase();
+
+        const alignmentMap = {
+            "left": "flex-start",
+            "center": "center",
+            "right": "flex-end"
+        };
+        document.body.style.justifyContent = alignmentMap[alignParam] || "flex-end";
+
+        // SEASONS CONFIGURATION (All times in UTC ISO 8601 strings)
+        const SEASONS = {
+            "HALLOWEEN": {
+                start: "2026-10-01T09:00:00Z",
+                end:   "2026-11-05T09:00:00Z",
+                hwPhase2: {
+                    start: "2026-10-26T09:00:00Z",
+                    end:   "2026-11-05T09:00:00Z"
+                }
+            }
+        };
+
+        const DAY_ANCHOR = 6;
+        const LOOP_MAX = 384;
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+        const weatherSchedule = [
+            { "weather": "Partly Cloudy", "duration": 4 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Mostly Cloudy", "duration": 4 }, { "weather": "Clear", "duration": 3 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Clear", "duration": 12 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Clear", "duration": 10 },
+            { "weather": "Hazy", "duration": 4 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Cloudy", "duration": 7 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Cloudy", "duration": 6 },
+            { "weather": "Partly Cloudy", "duration": 6 }, { "weather": "Foggy", "duration": 4 },
+            { "weather": "Cloudy", "duration": 10 }, { "weather": "Mostly Clear", "duration": 12 },
+            { "weather": "Partly Cloudy", "duration": 1 }, { "weather": "Drizzling", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 17 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 3 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 3 }, { "weather": "Cloudy", "duration": 11 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Mostly Cloudy", "duration": 4 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Clear", "duration": 17 },
+            { "weather": "Mostly Clear", "duration": 20 }, { "weather": "Foggy", "duration": 5 },
+            { "weather": "Partly Cloudy", "duration": 19 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 22 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 1 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 16 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Cloudy", "duration": 5 }, { "weather": "Partly Cloudy", "duration": 15 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Partly Cloudy", "duration": 5 },
+            { "weather": "Mostly Cloudy", "duration": 6 }, { "weather": "Partly Cloudy", "duration": 12 },
+            { "weather": "Mostly Cloudy", "duration": 12 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Clear", "duration": 30 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Raining", "duration": 7 }, { "weather": "Drizzling", "duration": 1 },
+            { "weather": "Partly Cloudy", "duration": 7 }
+        ];
+
+        function getLoopPosition(totalHours) {
+            const loopHrFull = totalHours % LOOP_MAX;
+            const loopHrFloored = Math.floor(loopHrFull);
+
+            let acc = 0;
+            for (let i = 0; i < weatherSchedule.length; i++) {
+                if (loopHrFloored >= acc && loopHrFloored < (acc + weatherSchedule[i].duration)) {
+                    return { index: i };
+                }
+                acc += weatherSchedule[i].duration;
+            }
+            return { index: 0 };
+        }
+
+        function isHalloweenPhase2(todayStr) {
+            const sHw = SEASONS["HALLOWEEN"];
+            const isHalloween = (todayStr >= sHw.start && todayStr < sHw.end);
+            return isHalloween && ((todayStr >= sHw.hwPhase2.start && todayStr < sHw.hwPhase2.end) || FORCE_HW_WEATHER);
+        }
+
+        function update() {
+            const now = new Date();
+            const todayStr = now.toISOString();
+            const rawUnix = now.getTime() / 1000;
+            const totalMinutes = rawUnix / 2;
+            const totalHours = totalMinutes / 60;
+            const h = Math.floor(totalMinutes / 60) % 24;
+            const m = Math.floor(totalMinutes % 60);
+            const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+            const loopData = getLoopPosition(totalHours);
+            const currentRawWeather = weatherSchedule[loopData.index].weather;
+
+            document.getElementById('day-label').innerText = days[(Math.floor(totalMinutes / 1440) + DAY_ANCHOR) % 7].toUpperCase();
+            document.getElementById('time-label').innerText = timeStr;
+            document.getElementById('current-weather-label').innerText = currentRawWeather;
+
+            updateWeatherDisplay(loopData, h, m, todayStr);
+        }
+
+        function updateWeatherDisplay(loopData, h, m, todayStr) {
+            const widget = document.getElementById('main-widget');
+            const mainWeatherContainer = document.getElementById('main-weather-container');
+            const isDay = (h >= 6 && h < 21);
+            const current = weatherSchedule[loopData.index];
+
+            if (USE_ICONS_MODE) {
+                widget.classList.remove('full-bg');
+                mainWeatherContainer.style.display = "flex";
+                widget.style.backgroundImage = "url('icons/day.png'), url('icons/night.png')";
+                if (isDay) {
+                    widget.style.backgroundPosition = "center 0px, center 100px";
+                    widget.classList.remove('night-mode');
+                } else {
+                    widget.style.backgroundPosition = "center -100px, center 0px";
+                    widget.classList.add('night-mode');
+                }
+            } else {
+                widget.classList.add('full-bg');
+                mainWeatherContainer.style.display = "none";
+
+                const weatherKey = current.weather.charAt(0).toLowerCase() + current.weather.slice(1).replace(/\s+/g, '');
+                const timeSuffix = isDay ? "Day" : "Night";
+                const bgPath = `icons/widget-bg/${weatherKey}-${timeSuffix}.png`;
+
+                widget.style.backgroundImage = `url('${bgPath}')`;
+
+                if (isDay) {
+                    widget.classList.remove('night-mode');
+                } else {
+                    widget.classList.add('night-mode');
+                }
+            }
+
+            document.getElementById('weather-icon').src = getIconPath(current.weather, isDay);
+
+            const totalDayMins = (h * 60) + m;
+            const isHalloweenHours = (totalDayMins >= 1170 || totalDayMins < 390); // 19:30 to 06:30
+
+            if (isHalloweenPhase2(todayStr) && isHalloweenHours) {
+                widget.classList.add('halloween-active');
+            } else {
+                widget.classList.remove('halloween-active');
+            }
+        }
+
+        function getIconPath(n, d) {
+            n = n.toLowerCase();
+            if (n.includes("rain")) return d ? "icons/raining-day.png" : "icons/raining-night.png";
+            if (n.includes("drizz")) return d ? "icons/drizzling-day.png" : "icons/drizzling-night.png";
+            if (n.includes("mist") || n.includes("hazy")) return "icons/misty.png";
+            if (n.includes("fog")) return d ? "icons/foggy-day.png" : "icons/foggy-night.png";
+            if (n.includes("mostly clear")) return d ? "icons/mostlyClear-day.png" : "icons/mostlyClear-night.png";
+            if (n.includes("partly cloudy")) return d ? "icons/partlyCloudy-day.png" : "icons/partlyCloudy-night.png";
+            if (n.includes("mostly cloudy")) return d ? "icons/mostlyCloudy-day.png" : "icons/mostlyCloudy-night.png";
+            if (n.includes("cloudy")) return d ? "icons/cloudy-day.png" : "icons/cloudy-night.png";
+            return d ? "icons/clear-day.png" : "icons/clear-night.png";
+        }
+
+        setInterval(update, 1000);
+        update();
+    </script>
+</body>
+
+</html>

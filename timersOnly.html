@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GTA Widget - Timers Only</title>
+    <style>
+        :root {
+            --bg-white: rgba(255, 255, 255, 0.95);
+            --bg-active: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(144, 238, 144, 0.95) 100%);
+            --border-grey: rgba(64, 63, 63, 0.85);
+            --text-main: #232323;
+        }
+
+        html,
+        body {
+            background-color: rgba(0, 0, 0, 0);
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        body {
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            box-sizing: border-box;
+            /* flex-direction, align-items, and justify-content are controlled dynamically below */
+        }
+
+        .event-active-status {
+            background: var(--bg-active) !important;
+            border-color: #2ecc71 !important;
+        }
+
+        .info-box {
+            background: var(--bg-white);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid var(--border-grey);
+            border-radius: 10px;
+            padding: 0 14px;
+            height: 64px;
+            min-width: 260px;
+            flex-shrink: 0;
+            display: none;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: background 0.5s ease;
+            box-sizing: border-box;
+        }
+
+        /* Jack O' Lantern Halloween Theme Box */
+        #lantern-box {
+            background: rgba(120, 75, 160, 0.90);
+            border: 2px solid #ff8c00;
+        }
+
+        #lantern-box .box-label {
+            color: #ff8c00;
+            font-weight: 800;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        #lantern-box .box-timer {
+            color: #ffffff;
+            font-size: 21px;
+            margin-left: 0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .box-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 14px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .box-content {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            text-align: right;
+            justify-content: center;
+        }
+
+        .box-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: #555555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .box-val-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: baseline;
+            line-height: 1;
+        }
+
+        .box-val {
+            font-size: 19px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .box-timer {
+            font-size: 19px;
+            font-family: monospace;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="lantern-box" class="info-box">
+        <img src="icons/halloween.png" class="box-icon">
+        <div class="box-content">
+            <span class="box-label">Cycle Ends In:</span>
+            <div class="box-val-row">
+                <span id="lantern-timer" class="box-timer">00:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="sasquatch-box" class="info-box">
+        <img src="icons/sasquatch.png" class="box-icon">
+        <div class="box-content">
+            <span class="box-label">Next sasquatch</span>
+            <div class="box-val-row">
+                <span id="sasquatch-val" class="box-val">Searching...</span>
+                <span id="sasquatch-timer" class="box-timer">00:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="survival-box" class="info-box">
+        <img src="icons/stonerSurvival.png" class="box-icon">
+        <div class="box-content">
+            <span class="box-label">Next Survival</span>
+            <div class="box-val-row">
+                <span id="survival-val" class="box-val">Waiting...</span>
+                <span id="survival-timer" class="box-timer">00:00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="weather-box" class="info-box">
+        <img id="next-weather-icon" src="icons/clear-day.png" class="box-icon">
+        <div class="box-content">
+            <span class="box-label">Next Weather</span>
+            <div class="box-val-row">
+                <span id="next-name" class="box-val">...</span>
+                <span id="next-timer" class="box-timer">00:00</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // ==========================================
+        // LAYOUT & ALIGNMENT SETTINGS
+        // displayType:       "vertical" (default) or "horizontal"
+        // align:             "left", "center", or "right" (default)
+        // verticalAlignment: "top" (default), "center", or "bottom"
+        // ==========================================
+        const DEFAULT_DISPLAY_TYPE = "vertical";
+        const DEFAULT_ALIGNMENT = "center";
+        const DEFAULT_VERTICAL_ALIGNMENT = "top";
+
+        const rawDisplayType = urlParams.get('displayType') ?? urlParams.get('displaytype') ?? DEFAULT_DISPLAY_TYPE;
+        const displayType = rawDisplayType.toLowerCase();
+
+        const rawAlign = urlParams.get('align') ?? DEFAULT_ALIGNMENT;
+        const alignParam = rawAlign.toLowerCase();
+
+        const rawVAlign = urlParams.get('verticalAlignment')
+            ?? urlParams.get('verticalalignment')
+            ?? urlParams.get('vAlign')
+            ?? urlParams.get('valign')
+            ?? DEFAULT_VERTICAL_ALIGNMENT;
+        const vAlignParam = rawVAlign.toLowerCase();
+
+        const horizontalMap = {
+            "left": "flex-start",
+            "center": "center",
+            "right": "flex-end"
+        };
+        const hFlexAlign = horizontalMap[alignParam] || "flex-end";
+
+        if (displayType === "horizontal") {
+            document.body.style.flexDirection = "row";
+            document.body.style.flexWrap = "nowrap";
+            document.body.style.justifyContent = hFlexAlign;
+
+            if (vAlignParam === "bottom") {
+                document.body.style.alignItems = "flex-end";
+            } else if (vAlignParam === "center") {
+                document.body.style.alignItems = "center";
+            } else {
+                document.body.style.alignItems = "flex-start";
+            }
+        } else {
+            // Vertical Stack Mode (Default)
+            document.body.style.alignItems = hFlexAlign;
+
+            if (vAlignParam === "bottom") {
+                document.body.style.flexDirection = "column-reverse";
+                document.body.style.justifyContent = "flex-start";
+            } else if (vAlignParam === "center") {
+                document.body.style.flexDirection = "column";
+                document.body.style.justifyContent = "center";
+            } else {
+                // Default: "top" (top-down)
+                document.body.style.flexDirection = "column";
+                document.body.style.justifyContent = "flex-start";
+            }
+        }
+
+        // SETTINGS
+        const SHOW_NEXT_WEATHER = urlParams.get('nextWeather') === 'true';
+
+        // ShowPumpkins defaults to true unless explicitly set to false (?ShowPumpkins=false)
+        const showPumpkinsParam = urlParams.get('ShowPumpkins') ?? urlParams.get('showPumpkins');
+        const SHOW_PUMPKINS = showPumpkinsParam !== null ? showPumpkinsParam.toLowerCase() !== 'false' : true;
+
+        const LOOP_MAX = 384;
+
+        // SEASONS CONFIGURATION (All times in UTC ISO 8601 strings)
+        const SEASONS = {
+            "420WEEK": {
+                start: "2026-04-16T09:00:00Z",
+                end:   "2026-04-30T09:00:00Z"
+            },
+            "HALLOWEEN": {
+                start: "2026-10-01T09:00:00Z",
+                end:   "2026-11-05T09:00:00Z"
+            },
+            "CHRISTMAS": {
+                start: "2026-12-17T09:00:00Z",
+                end:   "2027-01-07T09:00:00Z"
+            }
+        };
+
+        const weatherSchedule = [
+            { "weather": "Partly Cloudy", "duration": 4 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Mostly Cloudy", "duration": 4 }, { "weather": "Clear", "duration": 3 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Clear", "duration": 12 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Clear", "duration": 10 },
+            { "weather": "Hazy", "duration": 4 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Cloudy", "duration": 7 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Cloudy", "duration": 6 },
+            { "weather": "Partly Cloudy", "duration": 6 }, { "weather": "Foggy", "duration": 4 },
+            { "weather": "Cloudy", "duration": 10 }, { "weather": "Mostly Clear", "duration": 12 },
+            { "weather": "Partly Cloudy", "duration": 1 }, { "weather": "Drizzling", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 17 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 3 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 3 }, { "weather": "Cloudy", "duration": 11 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Mostly Cloudy", "duration": 4 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Clear", "duration": 17 },
+            { "weather": "Mostly Clear", "duration": 20 }, { "weather": "Foggy", "duration": 5 },
+            { "weather": "Partly Cloudy", "duration": 19 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 22 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 1 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 16 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Cloudy", "duration": 5 }, { "weather": "Partly Cloudy", "duration": 15 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Partly Cloudy", "duration": 5 },
+            { "weather": "Mostly Cloudy", "duration": 6 }, { "weather": "Partly Cloudy", "duration": 12 },
+            { "weather": "Mostly Cloudy", "duration": 12 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Clear", "duration": 30 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Raining", "duration": 7 }, { "weather": "Drizzling", "duration": 1 },
+            { "weather": "Partly Cloudy", "duration": 7 }
+        ];
+
+        function getLoopPosition(totalHours) {
+            const loopHrFull = totalHours % LOOP_MAX;
+            const loopHrFloored = Math.floor(loopHrFull);
+
+            let acc = 0;
+            for (let i = 0; i < weatherSchedule.length; i++) {
+                if (loopHrFloored >= acc && loopHrFloored < (acc + weatherSchedule[i].duration)) {
+                    return {
+                        index: i,
+                        hourInLoop: loopHrFloored,
+                        remaining: (acc + weatherSchedule[i].duration) - loopHrFull
+                    };
+                }
+                acc += weatherSchedule[i].duration;
+            }
+            return { index: 0, hourInLoop: 0, remaining: 0 };
+        }
+
+        function getSeasonState(todayStr) {
+            const s420 = SEASONS["420WEEK"];
+            const sHw = SEASONS["HALLOWEEN"];
+
+            const is420 = (todayStr >= s420.start && todayStr < s420.end);
+            const isHalloween = (todayStr >= sHw.start && todayStr < sHw.end);
+
+            return {
+                is420,
+                isHalloween,
+                isSasquatchActive: (is420 || isHalloween)
+            };
+        }
+
+        function updateLanternTimer() {
+            const now = new Date();
+            const resetTime = new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate(),
+                6, 0, 0, 0
+            ));
+
+            if (now.getTime() >= resetTime.getTime()) {
+                resetTime.setUTCDate(resetTime.getUTCDate() + 1);
+            }
+
+            const diffSeconds = Math.max(0, Math.floor((resetTime.getTime() - now.getTime()) / 1000));
+            document.getElementById('lantern-timer').innerText = formatLongTimer(diffSeconds);
+        }
+
+        function update() {
+            const now = new Date();
+            const todayStr = now.toISOString();
+            const rawUnix = now.getTime() / 1000;
+            const totalMinutes = rawUnix / 2;
+            const totalHours = totalMinutes / 60;
+            const h = Math.floor(totalMinutes / 60) % 24;
+            const m = Math.floor(totalMinutes % 60);
+            const decHour = h + (m / 60) + ((rawUnix % 2) / 120);
+
+            const loopData = getLoopPosition(totalHours);
+            const currentRawWeather = weatherSchedule[loopData.index].weather;
+            const seasonState = getSeasonState(todayStr);
+
+            const showLanternBox = seasonState.isHalloween && SHOW_PUMPKINS;
+
+            document.getElementById('lantern-box').style.display = showLanternBox ? "flex" : "none";
+            document.getElementById('sasquatch-box').style.display = seasonState.isSasquatchActive ? "flex" : "none";
+            document.getElementById('survival-box').style.display = seasonState.is420 ? "flex" : "none";
+            document.getElementById('weather-box').style.display = SHOW_NEXT_WEATHER ? "flex" : "none";
+
+            if (SHOW_NEXT_WEATHER) {
+                const isDay = (h >= 6 && h < 21);
+                const nextIdx = (loopData.index + 1) % weatherSchedule.length;
+                const next = weatherSchedule[nextIdx];
+                const finalSeconds = Math.floor(loopData.remaining * 120);
+
+                document.getElementById('next-name').innerText = next.weather;
+                document.getElementById('next-timer').innerText = formatTimer(finalSeconds);
+                document.getElementById('next-weather-icon').src = getIconPath(next.weather, isDay);
+            }
+
+            if (showLanternBox) {
+                updateLanternTimer();
+            }
+            if (seasonState.isSasquatchActive) {
+                findNextsasquatch(loopData, decHour, rawUnix, currentRawWeather);
+            }
+            if (seasonState.is420) {
+                findNextSurvival(decHour, rawUnix);
+            }
+        }
+
+        function findNextSurvival(decHour, currentUnix) {
+            const survivalStart = 16.33;
+            const survivalEnd = 20.33;
+            const box = document.getElementById('survival-box');
+
+            if (decHour >= survivalStart && decHour < survivalEnd) {
+                box.classList.add('event-active-status');
+                const remainingHours = survivalEnd - decHour;
+                const secondsLeft = Math.max(0, Math.floor(remainingHours * 120));
+                document.getElementById('survival-val').innerText = "ACTIVE";
+                document.getElementById('survival-timer').innerText = formatLongTimer(secondsLeft);
+            } else {
+                box.classList.remove('event-active-status');
+                let waitHours = survivalStart - decHour;
+                if (waitHours < 0) waitHours += 24;
+                const secondsUntil = Math.max(0, Math.floor(waitHours * 120));
+                const spawnDate = new Date((currentUnix + secondsUntil) * 1000);
+                document.getElementById('survival-val').innerText = spawnDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('survival-timer').innerText = formatLongTimer(secondsUntil);
+            }
+        }
+
+        function findNextsasquatch(loopData, decHour, currentUnix, currentWeather) {
+            const BF_START = 3.5;
+            const BF_END = 8.5;
+            const box = document.getElementById('sasquatch-box');
+            const timerElem = document.getElementById('sasquatch-timer');
+            const valElem = document.getElementById('sasquatch-val');
+
+            if (decHour >= BF_START && decHour < BF_END && currentWeather.toLowerCase() === "foggy") {
+                box.classList.add('event-active-status');
+                const remainingHours = BF_END - decHour;
+                const secondsLeft = Math.max(0, Math.floor(remainingHours * 120));
+                valElem.innerText = "ACTIVE";
+                timerElem.innerText = formatLongTimer(secondsLeft);
+                return;
+            }
+
+            box.classList.remove('event-active-status');
+            let checkIdx = loopData.index;
+            let cumulativeWaitHours = 0;
+
+            for (let i = 0; i < weatherSchedule.length * 2; i++) {
+                let block = weatherSchedule[checkIdx % weatherSchedule.length];
+                let currentRemaining = (i === 0 ? loopData.remaining : block.duration);
+
+                let blockStartInGameDay = (decHour + cumulativeWaitHours) % 24;
+                let blockEndInGameDay = (blockStartInGameDay + currentRemaining);
+
+                const isFoggy = block.weather.toLowerCase() === "foggy";
+
+                if (isFoggy) {
+                    let targetHour = -1;
+
+                    if (blockStartInGameDay <= BF_START && blockEndInGameDay > BF_START) {
+                        targetHour = BF_START;
+                    }
+                    else if (blockStartInGameDay > BF_START && blockStartInGameDay < BF_END) {
+                        targetHour = blockStartInGameDay;
+                    }
+
+                    if (targetHour !== -1) {
+                        let hoursToWait = cumulativeWaitHours;
+                        if (targetHour > blockStartInGameDay) {
+                            hoursToWait += (targetHour - blockStartInGameDay);
+                        }
+
+                        const secondsUntil = Math.max(0, Math.floor(hoursToWait * 120));
+                        const targetUnix = currentUnix + secondsUntil;
+                        const spawnDate = new Date(targetUnix * 1000);
+
+                        valElem.innerText = spawnDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        timerElem.innerText = formatLongTimer(secondsUntil);
+                        return;
+                    }
+                }
+
+                cumulativeWaitHours += currentRemaining;
+                checkIdx++;
+            }
+
+            valElem.innerText = "N/A";
+            timerElem.innerText = "00:00:00";
+        }
+
+        function getIconPath(n, d) {
+            n = n.toLowerCase();
+            if (n.includes("rain")) return d ? "icons/raining-day.png" : "icons/raining-night.png";
+            if (n.includes("drizz")) return d ? "icons/drizzling-day.png" : "icons/drizzling-night.png";
+            if (n.includes("mist") || n.includes("hazy")) return "icons/misty.png";
+            if (n.includes("fog")) return d ? "icons/foggy-day.png" : "icons/foggy-night.png";
+            if (n.includes("mostly clear")) return d ? "icons/mostlyClear-day.png" : "icons/mostlyClear-night.png";
+            if (n.includes("partly cloudy")) return d ? "icons/partlyCloudy-day.png" : "icons/partlyCloudy-night.png";
+            if (n.includes("mostly cloudy")) return d ? "icons/mostlyCloudy-day.png" : "icons/mostlyCloudy-night.png";
+            if (n.includes("cloudy")) return d ? "icons/cloudy-day.png" : "icons/cloudy-night.png";
+            return d ? "icons/clear-day.png" : "icons/clear-night.png";
+        }
+
+        function formatTimer(secs) {
+            const totalSecs = Math.max(0, secs);
+            const m = Math.floor(totalSecs / 60);
+            const s = Math.floor(totalSecs % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function formatLongTimer(secs) {
+            const totalSecs = Math.max(0, secs);
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        setInterval(update, 1000);
+        update();
+    </script>
+</body>
+
+</html>

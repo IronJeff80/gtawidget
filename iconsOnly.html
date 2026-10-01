@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GTA Widget - Event Icons Only</title>
+    <style>
+        :root {
+            --bg-white: rgba(255, 255, 255, 0.95);
+        }
+
+        html,
+        body {
+            background-color: rgba(0, 0, 0, 0);
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        body {
+            padding: 10px;
+            display: flex;
+            box-sizing: border-box;
+        }
+
+        .event-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: nowrap;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            /* flex-direction, justify-content, and align-items are controlled dynamically below */
+        }
+
+        .event-card {
+            background: var(--bg-white);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid rgba(64, 63, 63, 0.85);
+            border-radius: 10px;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .event-card img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="event-bar" id="event-bar"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // ==========================================
+        // LAYOUT & ALIGNMENT SETTINGS
+        // displayType:       "horizontal" (default) or "vertical"
+        // align:             "left", "center", or "right" (default)
+        // verticalAlignment: "top" (default), "center", or "bottom"
+        // ==========================================
+        const DEFAULT_DISPLAY_TYPE = "horizontal";
+        const DEFAULT_ALIGNMENT = "center";
+        const DEFAULT_VERTICAL_ALIGNMENT = "top";
+
+        const rawDisplayType = urlParams.get('displayType') ?? urlParams.get('displaytype') ?? DEFAULT_DISPLAY_TYPE;
+        const displayType = rawDisplayType.toLowerCase();
+
+        const rawAlign = urlParams.get('align') ?? DEFAULT_ALIGNMENT;
+        const alignParam = rawAlign.toLowerCase();
+
+        const rawVAlign = urlParams.get('verticalAlignment')
+            ?? urlParams.get('verticalalignment')
+            ?? urlParams.get('vAlign')
+            ?? urlParams.get('valign')
+            ?? DEFAULT_VERTICAL_ALIGNMENT;
+        const vAlignParam = rawVAlign.toLowerCase();
+
+        const FORCE_HW_WEATHER = urlParams.get('hwWeather') === 'true';
+        const LOOP_MAX = 384;
+
+        const horizontalMap = {
+            "left": "flex-start",
+            "center": "center",
+            "right": "flex-end"
+        };
+        const hFlexAlign = horizontalMap[alignParam] || "flex-end";
+
+        const eventBar = document.getElementById('event-bar');
+        document.body.style.justifyContent = hFlexAlign;
+
+        if (displayType === "vertical") {
+            // Horizontal positioning of the vertical column (left, center, right)
+            eventBar.style.alignItems = hFlexAlign;
+
+            // Vertical stacking direction & anchor (top-down, centered, or bottom-up)
+            if (vAlignParam === "bottom") {
+                eventBar.style.flexDirection = "column-reverse";
+                eventBar.style.justifyContent = "flex-start";
+            } else if (vAlignParam === "center") {
+                eventBar.style.flexDirection = "column";
+                eventBar.style.justifyContent = "center";
+            } else {
+                // Default: "top" (top-down)
+                eventBar.style.flexDirection = "column";
+                eventBar.style.justifyContent = "flex-start";
+            }
+        } else {
+            // Horizontal row mode
+            eventBar.style.flexDirection = "row";
+            eventBar.style.justifyContent = hFlexAlign;
+
+            if (vAlignParam === "bottom") {
+                eventBar.style.alignItems = "flex-end";
+            } else if (vAlignParam === "center") {
+                eventBar.style.alignItems = "center";
+            } else {
+                eventBar.style.alignItems = "flex-start";
+            }
+        }
+
+        // SEASONS CONFIGURATION (All times in UTC ISO 8601 strings)
+        const SEASONS = {
+            "420WEEK": {
+                start: "2026-04-16T09:00:00Z",
+                end:   "2026-04-30T09:00:00Z"
+            },
+            "HALLOWEEN": {
+                start: "2026-10-01T09:00:00Z",
+                end:   "2026-11-05T09:00:00Z",
+                hwPhase1: {
+                    start: "2026-10-08T09:00:00Z",
+                    end:   "2026-10-26T09:00:00Z"
+                },
+                hwPhase2: {
+                    start: "2026-10-26T09:00:00Z",
+                    end:   "2026-11-05T09:00:00Z"
+                }
+            },
+            "CHRISTMAS": {
+                start: "2026-12-17T09:00:00Z",
+                end:   "2027-01-07T09:00:00Z"
+            }
+        };
+
+        const eventLibrary = {
+            "420WEEK": [
+                { name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy" },
+                { name: "Stoner Survival", icon: "stonerSurvival.png", startH: 16.33, endH: 20.33 }
+            ],
+            "CHRISTMAS": [
+                { name: "Yeti", icon: "yeti.png", startH: 21, endH: 6 },
+                { name: "Gooch", icon: "gooch.png", startH: 0, endH: 24 }
+            ],
+            "HALLOWEEN": [
+                { name: "Jack O' Lanterns", icon: "halloween.png", startH: 0, endH: 24 },
+                { name: "Cerberus", icon: "cerberus.webp", startH: 0, endH: 24 },
+                { name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy" },
+                { name: "Possessed Animal", icon: "posessedAnimal.png", startH: 20, endH: 1 },
+                // { name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5 },
+                { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6 },
+                { name: "Christine", icon: "christine.webp", startH: 21, endH: 5 },
+                { name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5 },
+                { name: "UFO Sightings", icon: "ufo.webp", phase: "UFO", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5 }
+            ]
+        };
+
+        const weatherSchedule = [
+            { "weather": "Partly Cloudy", "duration": 4 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Mostly Cloudy", "duration": 4 }, { "weather": "Clear", "duration": 3 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Clear", "duration": 12 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Clear", "duration": 10 },
+            { "weather": "Hazy", "duration": 4 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Cloudy", "duration": 7 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Cloudy", "duration": 6 },
+            { "weather": "Partly Cloudy", "duration": 6 }, { "weather": "Foggy", "duration": 4 },
+            { "weather": "Cloudy", "duration": 10 }, { "weather": "Mostly Clear", "duration": 12 },
+            { "weather": "Partly Cloudy", "duration": 1 }, { "weather": "Drizzling", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 17 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 3 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 3 }, { "weather": "Cloudy", "duration": 11 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Mostly Cloudy", "duration": 4 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Clear", "duration": 17 },
+            { "weather": "Mostly Clear", "duration": 20 }, { "weather": "Foggy", "duration": 5 },
+            { "weather": "Partly Cloudy", "duration": 19 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 22 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 1 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 16 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Cloudy", "duration": 5 }, { "weather": "Partly Cloudy", "duration": 15 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Partly Cloudy", "duration": 5 },
+            { "weather": "Mostly Cloudy", "duration": 6 }, { "weather": "Partly Cloudy", "duration": 12 },
+            { "weather": "Mostly Cloudy", "duration": 12 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Clear", "duration": 30 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Raining", "duration": 7 }, { "weather": "Drizzling", "duration": 1 },
+            { "weather": "Partly Cloudy", "duration": 7 }
+        ];
+
+        function getLoopPosition(totalHours) {
+            const loopHrFull = totalHours % LOOP_MAX;
+            const loopHrFloored = Math.floor(loopHrFull);
+
+            let acc = 0;
+            for (let i = 0; i < weatherSchedule.length; i++) {
+                if (loopHrFloored >= acc && loopHrFloored < (acc + weatherSchedule[i].duration)) {
+                    return { index: i };
+                }
+                acc += weatherSchedule[i].duration;
+            }
+            return { index: 0 };
+        }
+
+        function getSeasonState(todayStr) {
+            const s420 = SEASONS["420WEEK"];
+            const sHw = SEASONS["HALLOWEEN"];
+            const sXmas = SEASONS["CHRISTMAS"];
+
+            const is420 = (todayStr >= s420.start && todayStr < s420.end);
+            const isHalloween = (todayStr >= sHw.start && todayStr < sHw.end);
+            const isChristmas = (todayStr >= sXmas.start && todayStr < sXmas.end);
+
+            const isHWPhase1 = isHalloween && (todayStr >= sHw.hwPhase1.start && todayStr < sHw.hwPhase1.end);
+            const isHWPhase2 = isHalloween && ((todayStr >= sHw.hwPhase2.start && todayStr < sHw.hwPhase2.end) || FORCE_HW_WEATHER);
+
+            let activeSeason = "NONE";
+            if (is420) activeSeason = "420WEEK";
+            else if (isHalloween) activeSeason = "HALLOWEEN";
+            else if (isChristmas) activeSeason = "CHRISTMAS";
+
+            return {
+                activeSeason,
+                isHWPhase1,
+                isHWPhase2
+            };
+        }
+
+        function update() {
+            const now = new Date();
+            const todayStr = now.toISOString();
+            const rawUnix = now.getTime() / 1000;
+            const totalMinutes = rawUnix / 2;
+            const totalHours = totalMinutes / 60;
+            const h = Math.floor(totalMinutes / 60) % 24;
+            const m = Math.floor(totalMinutes % 60);
+            const decHour = h + (m / 60) + ((rawUnix % 2) / 120);
+
+            const loopData = getLoopPosition(totalHours);
+            const currentRawWeather = weatherSchedule[loopData.index].weather;
+            const seasonState = getSeasonState(todayStr);
+
+            updateEventCards(decHour, currentRawWeather, seasonState);
+        }
+
+        function updateEventCards(decHour, currentWeather, seasonState) {
+            const bar = document.getElementById('event-bar');
+            bar.innerHTML = "";
+            if (seasonState.activeSeason === "NONE") return;
+
+            const activeEvents = eventLibrary[seasonState.activeSeason] || [];
+            activeEvents.forEach(ev => {
+                if (ev.phase === "UFO" && !seasonState.isHWPhase1 && !seasonState.isHWPhase2) return;
+
+                const startH = (seasonState.isHWPhase2 && ev.hwStartH !== undefined) ? ev.hwStartH : ev.startH;
+                const endH = (seasonState.isHWPhase2 && ev.hwEndH !== undefined) ? ev.hwEndH : ev.endH;
+
+                const hourOk = (startH < endH) ? (decHour >= startH && decHour < endH) : (decHour >= startH || decHour < endH);
+                const weatherOk = !ev.reqWeather || ev.reqWeather.toLowerCase() === currentWeather.toLowerCase();
+
+                if (hourOk && weatherOk) {
+                    const card = document.createElement('div');
+                    card.className = 'event-card';
+                    card.innerHTML = `<img src="icons/${ev.icon}" title="${ev.name}">`;
+                    bar.appendChild(card);
+                }
+            });
+        }
+
+        setInterval(update, 1000);
+        update();
+    </script>
+</body>
+
+</html>
