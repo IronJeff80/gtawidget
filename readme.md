@@ -48,15 +48,14 @@ You can customize the widget directly in your OBS Browser Source URL without edi
 #### Example URLs:
 * **Show Next Weather:**
   ```text
-  [https://2smokinbarrels.com/gtawidget?nextWeather=true](https://2smokinbarrels.com/gtawidget?nextWeather=true)
+  https://2smokinbarrels.com/gtawidget?nextWeather=true
 
 * **Hide Pumpkin Timer & Show Next Weather (join multiple parameters with &):**
   ```text
-  [https://2smokinbarrels.com/gtawidget?ShowPumpkins=false&nextWeather=true](https://2smokinbarrels.com/gtawidget?ShowPumpkins=false&nextWeather=true)
-
+  https://2smokinbarrels.com/gtawidget?ShowPumpkins=false&nextWeather=true
 * **Classic Icon Mode + Next Weather + Debug Info:**
   ```text
-  [https://2smokinbarrels.com/gtawidget?icons=true&nextWeather=true&showInfo=true](https://2smokinbarrels.com/gtawidget?icons=true&nextWeather=true&showInfo=true)
+  https://2smokinbarrels.com/gtawidget?icons=true&nextWeather=true&showInfo=true
 
 ### 3. Streamer.bot Integration (Make your own Fork of this repo)
 * **WebSocket:** Ensure your Streamer.bot server is running on `127.0.0.1:8080` (default).
