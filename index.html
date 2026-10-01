@@ -366,6 +366,7 @@
             "HALLOWEEN": [
                 { name: "Jack O' Lanterns", icon: "halloween.png", startH: 0, endH: 24, msg: "", notified: false },
                 { name: "Cerberus", icon: "cerberus.webp", startH: 0, endH: 24, msg: "", notified: false },
+                { name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy", msg: "👣 sasquatch spotted in the fog!", notified: false },
                 { name: "Possessed Animal", icon: "posessedAnimal.png", startH: 20, endH: 1, msg: "🐾 Wildlife is acting strange...", notified: false },
                 { name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
                 { name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
@@ -430,7 +431,6 @@
 
         function update() {
             const now = new Date();
-            // Replace: const todayStr = now.toISOString().split('T')[0];
             const todayStr = now.toISOString();
             const rawUnix = now.getTime() / 1000;
             const totalSeconds = rawUnix / 2;
@@ -475,15 +475,20 @@
                 lastLoggedHour = h;
             }
 
-            const is420Active = (CURRENT_SEASON === "420WEEK" && todayStr >= SEASON_START && todayStr <= SEASON_END);
-            document.getElementById('sasquatch-box').style.display = is420Active ? "flex" : "none";
+            const isSeasonWindow = (todayStr >= SEASON_START && todayStr <= SEASON_END);
+            const is420Active = (CURRENT_SEASON === "420WEEK" && isSeasonWindow);
+            const isSasquatchActive = ((CURRENT_SEASON === "420WEEK" || CURRENT_SEASON === "HALLOWEEN") && isSeasonWindow);
+
+            document.getElementById('sasquatch-box').style.display = isSasquatchActive ? "flex" : "none";
             document.getElementById('survival-box').style.display = is420Active ? "flex" : "none";
 
             updateWeatherDisplay(loopData, h, m, todayStr);
             updateEventCards(todayStr, decHour, currentRawWeather);
 
-            if (is420Active) {
+            if (isSasquatchActive) {
                 findNextsasquatch(loopData, decHour, rawUnix, currentRawWeather);
+            }
+            if (is420Active) {
                 findNextSurvival(decHour, rawUnix);
             }
         }
