@@ -134,9 +134,12 @@
             transform-origin: center center;
             flex-shrink: 0;
             overflow: hidden;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+        }
+
+        .canvas-bg-custom {
+            background-size: cover !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
         }
 
         body.studio-mode #overlay-canvas {
@@ -1830,12 +1833,12 @@
             }
 
             customBgUrl = URL.createObjectURL(file);
-            const canvas = document.getElementById('overlay-canvas');
-            canvas.className = '';
-            canvas.style.backgroundImage = `url('${customBgUrl}')`;
-
             const btn = document.getElementById('btn-custom-bg');
             setCanvasBg('custom', btn);
+
+            const canvas = document.getElementById('overlay-canvas');
+            canvas.className = 'canvas-bg-custom';
+            canvas.style.backgroundImage = `url('${customBgUrl}')`;
         }
 
         function resetPositions() {
