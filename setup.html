@@ -134,6 +134,9 @@
             transform-origin: center center;
             flex-shrink: 0;
             overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
 
         body.studio-mode #overlay-canvas {
@@ -246,7 +249,7 @@
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
         }
 
-        /* Corner Resize Handle (Bottom-Right of each module) */
+        /* Corner Resize Handle */
         .resize-handle {
             position: absolute;
             width: 16px;
@@ -852,7 +855,7 @@
         <div class="studio-toolbar">
             <div class="toolbar-group">
                 <span id="canvas-label" style="font-weight: 800; color: var(--ui-accent);">1920 × 1080 CANVAS</span>
-                <span style="color: var(--ui-muted);">Drag to move • Drag corner square to scale</span>
+                <span style="color: var(--ui-muted);">Drag to move • Drag corner to scale</span>
             </div>
             <div class="toolbar-group">
                 <button class="tb-btn active" id="btn-snap" onclick="toggleSnapping(this)">🧲 Snap: ON</button>
@@ -860,6 +863,8 @@
                 <button class="tb-btn active" onclick="setCanvasBg('checker', this)">Grid</button>
                 <button class="tb-btn" onclick="setCanvasBg('dark', this)">Dark</button>
                 <button class="tb-btn" onclick="setCanvasBg('ls', this)">Sunset</button>
+                <button class="tb-btn" id="btn-custom-bg" onclick="document.getElementById('bg-file-input').click()">📷 OBS Screenshot</button>
+                <input type="file" id="bg-file-input" accept="image/*" style="display:none;" onchange="handleCustomBgUpload(event)">
                 <button class="tb-btn" onclick="resetPositions()">↺ Reset</button>
             </div>
         </div>
@@ -984,7 +989,7 @@
                 </div>
 
                 <div class="control-row">
-                    <div class="control-label">Coordinates & Quick Canvas Centering</div>
+                    <div class="control-label">Coordinates & Canvas Centering</div>
                     <div class="xy-grid">
                         <div class="num-input-box">
                             <label>X (px)</label>
@@ -1043,7 +1048,7 @@
                 </div>
             </div>
 
-            <!-- 2. ICONS SPECIFIC CONTROLS (Only visible when Icons tab is active) -->
+            <!-- 2. ICONS SPECIFIC CONTROLS (Visible when Icons tab is active) -->
             <div class="control-card" id="icons-options-card" style="display: none;">
                 <div class="card-title"><span>EVENT ICONS FILTER</span></div>
                 <div class="control-row">
@@ -1238,8 +1243,8 @@
                 width: 260,
                 dir: urlParams.get('iD') ?? 'h',
                 align: urlParams.get('iA') ?? 'right',
-                vAlign: urlParams.get('iV') ?? 'top',
-                filter: urlParams.get('iconFilter') ?? 'all' // 'all' or 'timedOnly'
+                vAlign: 'top',
+                filter: urlParams.get('iconFilter') ?? 'all'
             },
             timers: {
                 show: urlParams.get('tShow') !== '0',
@@ -1249,7 +1254,7 @@
                 width: parseInt(urlParams.get('tW') ?? 260, 10),
                 dir: urlParams.get('tD') ?? 'v',
                 align: urlParams.get('tA') ?? 'right',
-                vAlign: urlParams.get('tV') ?? 'top',
+                vAlign: 'top',
                 showLantern: (urlParams.get('showLantern') ?? urlParams.get('ShowPumpkins') ?? 'true').toLowerCase() !== 'false',
                 showSasquatch: urlParams.get('showSasquatch') !== 'false',
                 showSurvival: urlParams.get('showSurvival') !== 'false',
@@ -1275,6 +1280,7 @@
         let canvasZoom = 1;
         let client = null;
         let lastLanternResetDay = -1;
+        let customBgUrl = null;
 
         // ==========================================
         // CANVAS SIZING & SAFE AREA
@@ -1371,7 +1377,6 @@
             btn.innerText = snapEnabled ? '🧲 Snap: ON' : '🧲 Snap: OFF';
         }
 
-        // Get actual scaled bounding width & height of a module on the canvas
         function getModuleBounds(modKey) {
             const el = document.getElementById('mod-' + modKey);
             const m = layout[modKey];
@@ -1389,7 +1394,6 @@
             };
         }
 
-        // Center the currently selected module horizontally or vertically on the canvas
         function centerSelectedModule(axis) {
             const b = getModuleBounds(selectedMod);
             const guideV = document.getElementById('snap-guide-v');
@@ -1412,10 +1416,9 @@
             updateGeneratedUrl();
         }
 
-        // Corner Drag-to-Scale
         function startResize(e, modKey) {
             if (IS_OBS_MODE) return;
-            e.stopPropagation(); // Prevent triggering position drag
+            e.stopPropagation();
             selectModule(modKey);
             resizeTarget = modKey;
             dragStartX = e.clientX;
@@ -1450,7 +1453,6 @@
             window.removeEventListener('mouseup', onResizeEnd);
         }
 
-        // Drag-to-Move with Magnetic Snapping
         function startDrag(e, modKey) {
             if (IS_OBS_MODE || e.target.classList.contains('resize-handle')) return;
             selectModule(modKey);
@@ -1477,14 +1479,12 @@
             guideV.style.display = 'none';
             guideH.style.display = 'none';
 
-            if (snapEnabled && !e.altKey) { // Hold Alt to temporarily bypass snapping
+            if (snapEnabled && !e.altKey) {
                 const cur = getModuleBounds(dragTarget);
                 const w = cur.width;
                 const h = cur.height;
 
-                // X-Axis Snap Candidates (Canvas Center + Other Visible Modules' Left, Center, Right)
                 const xTargets = [{ val: layout.canvas.w / 2 }];
-                // Y-Axis Snap Candidates (Canvas Center + Other Visible Modules' Top, Center, Bottom)
                 const yTargets = [{ val: layout.canvas.h / 2 }];
 
                 ['clock', 'icons', 'timers'].forEach(otherKey => {
@@ -1494,7 +1494,6 @@
                     yTargets.push({ val: ob.top }, { val: ob.centerY }, { val: ob.bottom });
                 });
 
-                // Check Left, CenterX, and Right edges of dragged module against xTargets
                 const myXEdges = [
                     { offset: 0, pos: nextX },
                     { offset: w / 2, pos: nextX + w / 2 },
@@ -1513,7 +1512,6 @@
                     if (guideV.style.display === 'block') break;
                 }
 
-                // Check Top, CenterY, and Bottom edges of dragged module against yTargets
                 const myYEdges = [
                     { offset: 0, pos: nextY },
                     { offset: h / 2, pos: nextY + h / 2 },
@@ -1786,7 +1784,6 @@
                 if (actId) p.set(`act_${def.key}`, actId);
             });
 
-            // Auto-detect current file name (defaults to setup.html)
             const currentFile = window.location.pathname.split('/').pop() || 'setup.html';
             document.getElementById('generated-url-box').innerText = `${base}${currentFile}?${p.toString()}`;
         }
@@ -1815,7 +1812,30 @@
         function setCanvasBg(mode, btn) {
             btn.parentElement.querySelectorAll('.tb-btn:not(#btn-hud):not(#btn-snap)').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById('overlay-canvas').className = 'canvas-bg-' + mode;
+
+            const canvas = document.getElementById('overlay-canvas');
+            canvas.style.backgroundImage = ''; // Clear custom uploaded image if switching preset
+
+            if (mode !== 'custom') {
+                canvas.className = 'canvas-bg-' + mode;
+            }
+        }
+
+        function handleCustomBgUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (customBgUrl) {
+                URL.revokeObjectURL(customBgUrl);
+            }
+
+            customBgUrl = URL.createObjectURL(file);
+            const canvas = document.getElementById('overlay-canvas');
+            canvas.className = '';
+            canvas.style.backgroundImage = `url('${customBgUrl}')`;
+
+            const btn = document.getElementById('btn-custom-bg');
+            setCanvasBg('custom', btn);
         }
 
         function resetPositions() {
@@ -2096,7 +2116,6 @@
 
             const seasonState = getSeasonState(todayStr);
 
-            // Individual timer visibility
             const showLantern = seasonState.isHalloween && layout.timers.showLantern;
             const showSasquatch = seasonState.isSasquatchActive && layout.timers.showSasquatch;
             const showSurvival = seasonState.is420 && layout.timers.showSurvival;
@@ -2172,7 +2191,6 @@
             const previewAllInStudio = !IS_OBS_MODE && layout.global.hwWeather;
 
             activeEvents.forEach(ev => {
-                // Check if user set Icon Filter to "timedOnly" (hide 24/7 all-day icons)
                 const isAllDayEvent = (ev.startH === 0 && ev.endH === 24);
                 if (layout.icons.filter === 'timedOnly' && isAllDayEvent) {
                     return;
@@ -2338,7 +2356,6 @@
                 populateInspector();
                 updateGeneratedUrl();
             } else {
-                // In OBS Mode, ensure canvas matches configured resolution
                 const canvas = document.getElementById('overlay-canvas');
                 canvas.style.width = layout.canvas.w + 'px';
                 canvas.style.height = layout.canvas.h + 'px';
