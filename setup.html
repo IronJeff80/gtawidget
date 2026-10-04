@@ -1,0 +1,2127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GTA Widget - Custom Layout Studio & OBS Overlay</title>
+    <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+    <style>
+        :root {
+            --bg-white: rgba(255, 255, 255, 0.95);
+            --bg-halloween: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 140, 0, 0.95) 100%);
+            --bg-active: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(144, 238, 144, 0.95) 100%);
+            --border-grey: rgba(64, 63, 63, 0.85);
+            --text-main: #232323;
+
+            /* Studio UI Colors */
+            --ui-bg: #0f1116;
+            --ui-panel: #181b22;
+            --ui-card: #212631;
+            --ui-border: #2e3545;
+            --ui-accent: #ff8c00;
+            --ui-green: #2ecc71;
+            --ui-text: #f0f2f5;
+            --ui-muted: #9ba3b5;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: transparent;
+        }
+
+        /* Mode Switching: Studio vs OBS */
+        body.studio-mode {
+            display: flex;
+            background-color: var(--ui-bg);
+            color: var(--ui-text);
+        }
+
+        body.obs-mode .studio-toolbar,
+        body.obs-mode .settings-pane,
+        body.obs-mode .hud-guide,
+        body.obs-mode .mod-handle {
+            display: none !important;
+        }
+
+        body.obs-mode .preview-pane,
+        body.obs-mode .stage-viewport,
+        body.obs-mode #overlay-canvas {
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        body.obs-mode .draggable-module {
+            border: none !important;
+            background: transparent !important;
+            cursor: default !important;
+        }
+
+        /* LEFT PANE: STUDIO PREVIEW STAGE */
+        .preview-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #090b0e;
+            border-right: 1px solid var(--ui-border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .studio-toolbar {
+            height: 52px;
+            background-color: var(--ui-panel);
+            border-bottom: 1px solid var(--ui-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            font-size: 12px;
+            z-index: 20;
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tb-btn {
+            background: var(--ui-card);
+            color: var(--ui-muted);
+            border: 1px solid var(--ui-border);
+            padding: 5px 11px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }
+
+        .tb-btn.active,
+        .tb-btn:hover {
+            color: var(--ui-text);
+            border-color: var(--ui-accent);
+            background: rgba(255, 140, 0, 0.14);
+        }
+
+        .stage-viewport {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #overlay-canvas {
+            position: relative;
+            transform-origin: center center;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        body.studio-mode #overlay-canvas {
+            border: 2px solid #3a4256;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75);
+        }
+
+        .canvas-bg-checker {
+            background-image:
+                linear-gradient(45deg, #151821 25%, transparent 25%),
+                linear-gradient(-45deg, #151821 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #151821 75%),
+                linear-gradient(-45deg, transparent 75%, #151821 75%);
+            background-size: 32px 32px;
+            background-position: 0 0, 0 16px, 16px -16px, -16px 0;
+            background-color: #0e1017;
+        }
+
+        .canvas-bg-dark {
+            background: radial-gradient(circle at center, #252b3b 0%, #0d1017 100%);
+        }
+
+        .canvas-bg-ls {
+            background: linear-gradient(160deg, #1d1a2f 0%, #4b3d60 55%, #b57c68 100%);
+        }
+
+        .hud-guide {
+            position: absolute;
+            border: 2px dashed rgba(255, 255, 255, 0.22);
+            background: rgba(0, 0, 0, 0.35);
+            color: rgba(255, 255, 255, 0.45);
+            font-weight: 800;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        /* Draggable Modules */
+        .draggable-module {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            border-radius: 12px;
+        }
+
+        body.studio-mode .draggable-module {
+            border: 2px dashed rgba(255, 140, 0, 0.45);
+            background: rgba(255, 140, 0, 0.04);
+            cursor: grab;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+
+        body.studio-mode .draggable-module:hover,
+        body.studio-mode .draggable-module.selected-module {
+            border-color: var(--ui-accent);
+            background: rgba(255, 140, 0, 0.10);
+            z-index: 10;
+        }
+
+        body.studio-mode .draggable-module:active {
+            cursor: grabbing;
+        }
+
+        .mod-handle {
+            position: absolute;
+            top: -26px;
+            left: 0;
+            background: var(--ui-accent);
+            color: #111;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 6px 6px 0 0;
+            white-space: nowrap;
+            pointer-events: none;
+            letter-spacing: 0.4px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Widgets Styling */
+        .widget-main {
+            background-image: url('icons/day.png'), url('icons/night.png');
+            background-position: center 0px, center 100px;
+            background-size: cover;
+            background-repeat: no-repeat;
+            border: 2px solid var(--border-grey);
+            border-radius: 12px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            min-width: 260px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            transition: background 1s ease, background-position 1s ease-in-out;
+            line-height: 1;
+        }
+
+        .widget-main.full-bg {
+            background-size: cover;
+            background-position: center center !important;
+        }
+
+        .night-mode #day-label,
+        .night-mode #time-label,
+        .night-mode #current-weather-label {
+            color: #ffffff !important;
+        }
+
+        .halloween-active {
+            background: var(--bg-halloween);
+            border-color: #ff8c00;
+        }
+
+        .event-active-status {
+            background: var(--bg-active) !important;
+            border-color: #2ecc71 !important;
+        }
+
+        .weather-icon {
+            width: 64px;
+            height: 64px;
+            margin-right: 15px;
+            object-fit: contain;
+        }
+
+        .weather-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #current-weather-label {
+            font-size: 10px;
+            font-weight: 800;
+            color: #6d6d6d;
+            text-transform: uppercase;
+            margin-top: -5px;
+            white-space: nowrap;
+            max-width: 64px;
+            line-height: 1.1;
+        }
+
+        .text-stack {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            text-align: right;
+        }
+
+        #day-label {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            text-transform: uppercase;
+            line-height: 1;
+            text-shadow:
+                -1px -1px 0 rgba(255, 255, 255, 0.5),
+                1px -1px 0 rgba(255, 255, 255, 0.5),
+                -1px 1px 0 rgba(255, 255, 255, 0.5),
+                1px 1px 0 rgba(255, 255, 255, 0.5),
+                0px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #time-label {
+            font-size: 34px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-top: 4px;
+            text-shadow:
+                -1px -1px 0 rgba(255, 255, 255, 0.5),
+                1px -1px 0 rgba(255, 255, 255, 0.5),
+                -1px 1px 0 rgba(255, 255, 255, 0.5),
+                1px 1px 0 rgba(255, 255, 255, 0.5),
+                0px 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .night-mode #day-label,
+        .night-mode #time-label {
+            text-shadow:
+                0 0 5px rgba(255, 255, 255, 0.4),
+                -1px -1px 0 #006497,
+                1px -1px 0 #006497,
+                -1px 1px 0 #006497,
+                1px 1px 0 #006497;
+        }
+
+        /* Event Icons */
+        .event-bar {
+            display: flex;
+            gap: 6px;
+        }
+
+        .event-card {
+            background: var(--bg-white);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid var(--border-grey);
+            border-radius: 10px;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .event-card img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* Timers */
+        .timers-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        .info-box {
+            background: var(--bg-white);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid var(--border-grey);
+            border-radius: 10px;
+            padding: 0 14px;
+            height: 64px;
+            min-width: 260px;
+            flex-shrink: 0;
+            display: none;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: background 0.5s ease;
+        }
+
+        #lantern-box {
+            background: rgba(120, 75, 160, 0.90);
+            border: 2px solid #ff8c00;
+        }
+
+        #lantern-box .box-label {
+            color: #ff8c00;
+            font-weight: 800;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        #lantern-box .box-timer {
+            color: #ffffff;
+            font-size: 21px;
+            margin-left: 0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .box-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 14px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .box-content {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            text-align: right;
+            justify-content: center;
+        }
+
+        .box-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: #555555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .box-val-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: baseline;
+            line-height: 1;
+        }
+
+        .box-val {
+            font-size: 19px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .box-timer {
+            font-size: 19px;
+            font-family: monospace;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        /* RIGHT PANE: STUDIO SETTINGS */
+        .settings-pane {
+            width: 460px;
+            background-color: var(--ui-panel);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            flex-shrink: 0;
+            z-index: 30;
+        }
+
+        .settings-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--ui-border);
+        }
+
+        .settings-header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .settings-header p {
+            margin: 3px 0 0;
+            font-size: 12px;
+            color: var(--ui-muted);
+        }
+
+        .module-tabs {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            padding: 10px 16px;
+            background: #13161c;
+            border-bottom: 1px solid var(--ui-border);
+        }
+
+        .tab-btn {
+            background: var(--ui-card);
+            border: 1.5px solid var(--ui-border);
+            color: var(--ui-muted);
+            padding: 8px 4px;
+            border-radius: 7px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            border-color: var(--ui-accent);
+            color: #111;
+            background: var(--ui-accent);
+        }
+
+        .settings-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .control-card {
+            background-color: var(--ui-card);
+            border: 1px solid var(--ui-border);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .card-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: var(--ui-accent);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-row {
+            margin-bottom: 12px;
+        }
+
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .val-badge {
+            color: var(--ui-accent);
+            font-family: monospace;
+            font-weight: 700;
+        }
+
+        .pill-group {
+            display: flex;
+            background: var(--ui-panel);
+            border-radius: 7px;
+            padding: 3px;
+            border: 1px solid var(--ui-border);
+            gap: 4px;
+        }
+
+        .pill-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--ui-muted);
+            padding: 6px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .pill-btn.active {
+            background: var(--ui-accent);
+            color: #111;
+        }
+
+        .xy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .num-input-box {
+            background: var(--ui-panel);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .num-input-box label {
+            font-size: 11px;
+            color: var(--ui-muted);
+            font-weight: 700;
+        }
+
+        .num-input-box input {
+            background: transparent;
+            border: none;
+            color: var(--ui-text);
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 700;
+            width: 85px;
+            text-align: right;
+            outline: none;
+            user-select: text;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--ui-accent);
+            cursor: pointer;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .toggle-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .toggle-title {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        input[type="checkbox"].switch {
+            appearance: none;
+            width: 38px;
+            height: 20px;
+            background: var(--ui-panel);
+            border: 1px solid var(--ui-border);
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        input[type="checkbox"].switch::after {
+            content: "";
+            width: 14px;
+            height: 14px;
+            background: var(--ui-muted);
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        input[type="checkbox"].switch:checked {
+            background: rgba(255, 140, 0, 0.25);
+            border-color: var(--ui-accent);
+        }
+
+        input[type="checkbox"].switch:checked::after {
+            transform: translateX(18px);
+            background: var(--ui-accent);
+        }
+
+        .sb-event-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sb-event-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .sb-event-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .sb-event-header span.season-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--ui-muted);
+            font-weight: 700;
+        }
+
+        .sb-input-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .sb-text-input {
+            flex: 1;
+            background: var(--ui-panel);
+            border: 1px solid var(--ui-border);
+            color: var(--ui-text);
+            padding: 6px 9px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 11px;
+            outline: none;
+            user-select: text;
+        }
+
+        .sb-text-input:focus {
+            border-color: var(--ui-accent);
+        }
+
+        .sb-test-btn {
+            background: var(--ui-panel);
+            color: var(--ui-accent);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px;
+            padding: 0 10px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .sb-test-btn:hover {
+            border-color: var(--ui-accent);
+            background: rgba(255, 140, 0, 0.15);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+            margin-right: 5px;
+        }
+
+        .status-dot.connected {
+            background: var(--ui-green);
+            box-shadow: 0 0 6px var(--ui-green);
+        }
+
+        .output-footer {
+            padding: 14px 20px;
+            background: #12151b;
+            border-top: 1px solid var(--ui-border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .url-box {
+            background: #090b0e;
+            border: 1px solid var(--ui-border);
+            border-radius: 7px;
+            padding: 8px 10px;
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--ui-green);
+            word-break: break-all;
+            max-height: 58px;
+            overflow-y: auto;
+            user-select: text;
+        }
+
+        .copy-btn {
+            background: var(--ui-accent);
+            color: #111;
+            border: none;
+            padding: 11px;
+            border-radius: 7px;
+            font-weight: 800;
+            font-size: 13px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .copy-btn:hover {
+            background: #ffa333;
+        }
+    </style>
+</head>
+
+<body class="studio-mode">
+
+    <!-- LEFT PANE: LIVE CANVAS -->
+    <div class="preview-pane">
+        <div class="studio-toolbar">
+            <div class="toolbar-group">
+                <span id="canvas-label" style="font-weight: 800; color: var(--ui-accent);">1920 × 1080 CANVAS</span>
+                <span style="color: var(--ui-muted);">Drag any module to reposition</span>
+            </div>
+            <div class="toolbar-group">
+                <button class="tb-btn active" id="btn-hud" onclick="toggleHudGuide(this)">🎮 Safe Area Guide</button>
+                <button class="tb-btn active" onclick="setCanvasBg('checker', this)">Grid</button>
+                <button class="tb-btn" onclick="setCanvasBg('dark', this)">Dark</button>
+                <button class="tb-btn" onclick="setCanvasBg('ls', this)">Sunset</button>
+                <button class="tb-btn" onclick="resetPositions()">↺ Reset</button>
+            </div>
+        </div>
+
+        <div class="stage-viewport" id="stage-viewport">
+            <div id="overlay-canvas" class="canvas-bg-checker">
+
+                <!-- HUD / Safe Area Guides -->
+                <div class="hud-guide" id="guide-minimap" style="left: 34px; bottom: 36px; width: 290px; height: 185px;">
+                    GTA Minimap Safe Area
+                </div>
+                <div class="hud-guide" id="guide-ammo" style="right: 38px; top: 34px; width: 220px; height: 95px;">
+                    Cash / Ammo / Stars Area
+                </div>
+
+                <!-- MODULE 1: CLOCK & WEATHER -->
+                <div id="mod-clock" class="draggable-module selected-module" onmousedown="startDrag(event, 'clock')">
+                    <div class="mod-handle">1. Clock & Weather</div>
+                    <div id="main-widget" class="widget-main">
+                        <div class="weather-container" id="main-weather-container">
+                            <img id="weather-icon" src="icons/clear-day.png" class="weather-icon">
+                            <div id="current-weather-label">LOADING...</div>
+                        </div>
+                        <div class="text-stack">
+                            <div id="day-label">LOADING...</div>
+                            <div id="time-label">00:00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODULE 2: EVENT ICONS -->
+                <div id="mod-icons" class="draggable-module" onmousedown="startDrag(event, 'icons')">
+                    <div class="mod-handle">2. Event Icons</div>
+                    <div class="event-bar" id="event-bar"></div>
+                </div>
+
+                <!-- MODULE 3: TIMERS -->
+                <div id="mod-timers" class="draggable-module" onmousedown="startDrag(event, 'timers')">
+                    <div class="mod-handle">3. Event Timers</div>
+                    <div class="timers-wrapper" id="timers-wrapper">
+                        <div id="lantern-box" class="info-box">
+                            <img src="icons/halloween.png" class="box-icon">
+                            <div class="box-content">
+                                <span class="box-label">Cycle Ends In:</span>
+                                <div class="box-val-row">
+                                    <span id="lantern-timer" class="box-timer">00:00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="sasquatch-box" class="info-box">
+                            <img src="icons/sasquatch.png" class="box-icon">
+                            <div class="box-content">
+                                <span class="box-label">Next sasquatch</span>
+                                <div class="box-val-row">
+                                    <span id="sasquatch-val" class="box-val">Searching...</span>
+                                    <span id="sasquatch-timer" class="box-timer">00:00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="survival-box" class="info-box">
+                            <img src="icons/stonerSurvival.png" class="box-icon">
+                            <div class="box-content">
+                                <span class="box-label">Next Survival</span>
+                                <div class="box-val-row">
+                                    <span id="survival-val" class="box-val">Waiting...</span>
+                                    <span id="survival-timer" class="box-timer">00:00:00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="weather-box" class="info-box">
+                            <img id="next-weather-icon" src="icons/clear-day.png" class="box-icon">
+                            <div class="box-content">
+                                <span class="box-label">Next Weather</span>
+                                <div class="box-val-row">
+                                    <span id="next-name" class="box-val">...</span>
+                                    <span id="next-timer" class="box-timer">00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANE: SETTINGS MENU -->
+    <div class="settings-pane">
+        <div class="settings-header">
+            <h1>🎛️ Multi-Module Layout Studio</h1>
+            <p>Customize canvases, individual timers, icon filters, and Streamer.bot.</p>
+        </div>
+
+        <div class="module-tabs">
+            <button class="tab-btn active" id="tab-clock" onclick="selectModule('clock')">🕒 Clock</button>
+            <button class="tab-btn" id="tab-icons" onclick="selectModule('icons')">🎃 Icons</button>
+            <button class="tab-btn" id="tab-timers" onclick="selectModule('timers')">⏳ Timers</button>
+            <button class="tab-btn" id="tab-canvas" onclick="selectModule('canvas')">📐 Canvas</button>
+            <button class="tab-btn" id="tab-sbot" onclick="selectModule('sbot')">🤖 S.Bot</button>
+        </div>
+
+        <div class="settings-scroll">
+
+            <!-- 1. MODULE POSITION & APPEARANCE INSPECTOR -->
+            <div class="control-card" id="inspector-card">
+                <div class="card-title">
+                    <span id="inspector-title">CLOCK & WEATHER MODULE</span>
+                    <label style="display: flex; align-items: center; gap: 6px; color: var(--ui-text); cursor: pointer;">
+                        <span style="font-size: 11px;">Show Module</span>
+                        <input type="checkbox" class="switch" id="mod-show-chk" checked onchange="onModToggle(this.checked)">
+                    </label>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-label">Coordinates on Canvas</div>
+                    <div class="xy-grid">
+                        <div class="num-input-box">
+                            <label>X (px)</label>
+                            <input type="number" id="mod-x" min="0" step="5" oninput="onCoordInput()">
+                        </div>
+                        <div class="num-input-box">
+                            <label>Y (px)</label>
+                            <input type="number" id="mod-y" min="0" step="5" oninput="onCoordInput()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-label">
+                        <span>Module Scale</span>
+                        <span class="val-badge" id="mod-scale-label">100%</span>
+                    </div>
+                    <input type="range" id="mod-scale" min="0.4" max="2.5" step="0.05" value="1" oninput="onScaleInput(this.value)">
+                </div>
+
+                <div class="control-row" id="row-mod-width">
+                    <div class="control-label">
+                        <span>Card Width</span>
+                        <span class="val-badge" id="mod-width-label">260px</span>
+                    </div>
+                    <input type="range" id="mod-width" min="240" max="500" step="10" value="260" oninput="onWidthInput(this.value)">
+                </div>
+
+                <div class="control-row" id="row-mod-dir">
+                    <div class="control-label">Layout Orientation (displayType)</div>
+                    <div class="pill-group" id="group-dir">
+                        <button class="pill-btn" data-val="h" onclick="setModProp('dir', 'h')">Horizontal Row</button>
+                        <button class="pill-btn" data-val="v" onclick="setModProp('dir', 'v')">Vertical Stack</button>
+                    </div>
+                </div>
+
+                <div class="control-row" id="row-mod-align">
+                    <div class="control-label">Horizontal Alignment (align)</div>
+                    <div class="pill-group" id="group-align">
+                        <button class="pill-btn" data-val="left" onclick="setModProp('align', 'left')">Left</button>
+                        <button class="pill-btn" data-val="center" onclick="setModProp('align', 'center')">Center</button>
+                        <button class="pill-btn" data-val="right" onclick="setModProp('align', 'right')">Right</button>
+                    </div>
+                </div>
+
+                <div class="control-row" id="row-mod-valign">
+                    <div class="control-label">Stack Order (verticalAlignment)</div>
+                    <div class="pill-group" id="group-valign">
+                        <button class="pill-btn" data-val="top" onclick="setModProp('vAlign', 'top')">Top-Down</button>
+                        <button class="pill-btn" data-val="bottom" onclick="setModProp('vAlign', 'bottom')">Bottom-Up (Reverse)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. ICONS SPECIFIC CONTROLS (Only visible when Icons tab is active) -->
+            <div class="control-card" id="icons-options-card" style="display: none;">
+                <div class="card-title"><span>EVENT ICONS FILTER</span></div>
+                <div class="control-row">
+                    <div class="control-label">Show Icons Mode</div>
+                    <div class="pill-group" id="group-icon-filter">
+                        <button class="pill-btn active" data-val="all" onclick="setIconFilter('all')">All Icons (Default)</button>
+                        <button class="pill-btn" data-val="timedOnly" onclick="setIconFilter('timedOnly')">Timed Spawns Only</button>
+                    </div>
+                    <div style="font-size: 11px; color: var(--ui-muted); margin-top: 6px; line-height: 1.4;">
+                        <strong>Timed Spawns Only</strong> automatically hides 24/7 all-day icons (Cerberus & Jack O' Lanterns), only displaying icons during their active spawn hours (Sasquatch, Slasher, Christine, UFOs, etc.).
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. TIMERS SPECIFIC CONTROLS (Visible when Timers tab is active) -->
+            <div class="control-card" id="timers-options-card" style="display: none;">
+                <div class="card-title"><span>INDIVIDUAL TIMER TOGGLES</span></div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Jack O' Lantern Daily Cycle Timer (06:00 UTC)</span>
+                    <input type="checkbox" class="switch" id="chk-timer-lantern" checked onchange="onTimerToggle('showLantern', this.checked)">
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Next Sasquatch Spawn Timer (Fog)</span>
+                    <input type="checkbox" class="switch" id="chk-timer-sasquatch" checked onchange="onTimerToggle('showSasquatch', this.checked)">
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Next Stoner Survival Timer (420 Week)</span>
+                    <input type="checkbox" class="switch" id="chk-timer-survival" checked onchange="onTimerToggle('showSurvival', this.checked)">
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Next Weather Forecast Timer</span>
+                    <input type="checkbox" class="switch" id="chk-timer-weather" checked onchange="onTimerToggle('showNextWeather', this.checked)">
+                </div>
+            </div>
+
+            <!-- 4. CANVAS RESOLUTION CONFIG -->
+            <div class="control-card" id="canvas-options-card" style="display: none;">
+                <div class="card-title"><span>CANVAS RESOLUTION & ASPECT RATIO</span></div>
+
+                <div class="control-row">
+                    <div class="control-label">Canvas Presets</div>
+                    <div class="pill-group" id="group-canvas-presets" style="flex-wrap: wrap;">
+                        <button class="pill-btn active" onclick="setCanvasPreset(1920, 1080)">1080p (16:9)</button>
+                        <button class="pill-btn" onclick="setCanvasPreset(2560, 1440)">1440p (2K)</button>
+                        <button class="pill-btn" onclick="setCanvasPreset(3840, 2160)">4K UHD</button>
+                        <button class="pill-btn" onclick="setCanvasPreset(1080, 1920)">Vertical (9:16)</button>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-label">Custom Resolution (Width × Height)</div>
+                    <div class="xy-grid">
+                        <div class="num-input-box">
+                            <label>WIDTH</label>
+                            <input type="number" id="canvas-w" value="1920" step="10" oninput="onCustomCanvasInput()">
+                        </div>
+                        <div class="num-input-box">
+                            <label>HEIGHT</label>
+                            <input type="number" id="canvas-h" value="1080" step="10" oninput="onCustomCanvasInput()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. STREAMER.BOT CONFIGURATION TAB -->
+            <div id="sbot-panel" style="display: none; flex-direction: column; gap: 14px;">
+                <div class="control-card">
+                    <div class="card-title">
+                        <span>WEBSOCKET SERVER CONNECTION</span>
+                        <span id="sb-status-text" style="font-size: 10px; color: var(--ui-muted);">
+                            <span class="status-dot" id="sb-status-dot"></span>Disconnected
+                        </span>
+                    </div>
+
+                    <div class="xy-grid" style="margin-bottom: 10px;">
+                        <div class="num-input-box">
+                            <label>IP / HOST</label>
+                            <input type="text" id="sb-host-input" value="127.0.0.1" oninput="onSbConfigChange()">
+                        </div>
+                        <div class="num-input-box">
+                            <label>PORT</label>
+                            <input type="number" id="sb-port-input" value="8080" min="1" max="65535" oninput="onSbConfigChange()">
+                        </div>
+                    </div>
+
+                    <div class="toggle-row">
+                        <span class="toggle-title">Send Default Chat Alert Messages</span>
+                        <input type="checkbox" class="switch" id="chk-sb-chat" checked onchange="onSbConfigChange()">
+                    </div>
+
+                    <button class="tb-btn" style="width: 100%; margin-top: 8px;" onclick="connectStreamerBot()">
+                        🔄 Test / Reconnect WebSocket
+                    </button>
+                </div>
+
+                <div class="control-card">
+                    <div class="card-title">
+                        <span>EVENT ACTION ID TRIGGERS</span>
+                        <span style="font-size: 10px; color: var(--ui-muted); text-transform: none;">Paste Action GUIDs</span>
+                    </div>
+                    <div id="sb-actions-list"></div>
+                </div>
+            </div>
+
+            <!-- 6. GLOBAL VISUAL PREVIEWS & PATH -->
+            <div class="control-card" id="global-options-card">
+                <div class="card-title"><span>GLOBAL PREVIEW TOGGLES</span></div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Classic 64px Icon Mode (Clock)</span>
+                    <input type="checkbox" class="switch" id="chk-icons" onchange="syncGlobalToggles()">
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-title">Force Halloween Weather + All Icons (Preview)</span>
+                    <input type="checkbox" class="switch" id="chk-hwWeather" onchange="syncGlobalToggles()">
+                </div>
+            </div>
+
+            <div class="control-card" id="base-url-card">
+                <div class="card-title"><span>HOSTED URL PATH</span></div>
+                <input type="text" id="base-url-input" value="https://2smokinbarrels.com/gtawidget/"
+                    class="sb-text-input" style="width: 100%;" oninput="updateGeneratedUrl()">
+            </div>
+
+        </div>
+
+        <!-- FOOTER: OBS LINK -->
+        <div class="output-footer">
+            <div class="control-label" style="margin-bottom: 0;">
+                <span>Unified OBS Browser Source URL:</span>
+                <span class="val-badge" id="rec-obs-size">OBS Size: 1920 × 1080</span>
+            </div>
+            <div class="url-box" id="generated-url-box"></div>
+            <button class="copy-btn" id="copy-url-btn" onclick="copyObsUrl()">📋 Copy OBS Browser Source URL</button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const IS_OBS_MODE = urlParams.get('obs') === '1' || urlParams.get('obs') === 'true';
+
+        if (IS_OBS_MODE) {
+            document.body.classList.remove('studio-mode');
+            document.body.classList.add('obs-mode');
+        }
+
+        // ==========================================
+        // STREAMER.BOT DEFINITIONS
+        // ==========================================
+        const SB_EVENT_DEFINITIONS = [
+            { key: 'sasquatch', label: '👣 Sasquatch (Fog Spawn)', season: 'Halloween / 420' },
+            { key: 'ufo',       label: '🛸 UFO Sightings',         season: 'Halloween' },
+            { key: 'ghosts',    label: '👻 Ghosts Exposed',        season: 'Halloween' },
+            { key: 'christine', label: '🚗 Christine (Phantom Car)', season: 'Halloween' },
+            { key: 'hwslasher', label: '🎃 Halloween Slasher',     season: 'Halloween' },
+            { key: 'possessed', label: '🐾 Possessed Animal',      season: 'Halloween' },
+            { key: 'cerberus',  label: '🚛 Cerberus',              season: 'Halloween' },
+            { key: 'lantern',   label: '🕯️ Jack O\' Lantern Daily Reset (06:00 UTC)', season: 'Halloween' },
+            { key: 'survival',  label: '💨 Stoner Survival',       season: '420 Week' },
+            { key: 'yeti',      label: '❄️ Yeti (21:00)',          season: 'Christmas' },
+            { key: 'gooch',     label: '🎁 The Gooch',             season: 'Christmas' }
+        ];
+
+        // ==========================================
+        // UNIFIED LAYOUT STATE
+        // ==========================================
+        const layout = {
+            canvas: {
+                w: parseInt(urlParams.get('canvasW') ?? 1920, 10),
+                h: parseInt(urlParams.get('canvasH') ?? 1080, 10)
+            },
+            clock: {
+                show: urlParams.get('cShow') !== '0',
+                x: parseInt(urlParams.get('cX') ?? 1580, 10),
+                y: parseInt(urlParams.get('cY') ?? 150, 10),
+                scale: parseFloat(urlParams.get('cS') ?? 1),
+                width: parseInt(urlParams.get('cW') ?? 260, 10),
+                dir: 'h',
+                align: urlParams.get('cA') ?? 'right',
+                vAlign: 'top'
+            },
+            icons: {
+                show: urlParams.get('iShow') !== '0',
+                x: parseInt(urlParams.get('iX') ?? 1370, 10),
+                y: parseInt(urlParams.get('iY') ?? 265, 10),
+                scale: parseFloat(urlParams.get('iS') ?? 1),
+                width: 260,
+                dir: urlParams.get('iD') ?? 'h',
+                align: urlParams.get('iA') ?? 'right',
+                vAlign: urlParams.get('iV') ?? 'top',
+                filter: urlParams.get('iconFilter') ?? 'all' // 'all' or 'timedOnly'
+            },
+            timers: {
+                show: urlParams.get('tShow') !== '0',
+                x: parseInt(urlParams.get('tX') ?? 1580, 10),
+                y: parseInt(urlParams.get('tY') ?? 360, 10),
+                scale: parseFloat(urlParams.get('tS') ?? 1),
+                width: parseInt(urlParams.get('tW') ?? 260, 10),
+                dir: urlParams.get('tD') ?? 'v',
+                align: urlParams.get('tA') ?? 'right',
+                vAlign: urlParams.get('tV') ?? 'top',
+                showLantern: (urlParams.get('showLantern') ?? urlParams.get('ShowPumpkins') ?? 'true').toLowerCase() !== 'false',
+                showSasquatch: urlParams.get('showSasquatch') !== 'false',
+                showSurvival: urlParams.get('showSurvival') !== 'false',
+                showNextWeather: urlParams.get('showNextWeather') !== 'false'
+            },
+            global: {
+                iconsMode: urlParams.get('icons') === 'true',
+                hwWeather: urlParams.get('hwWeather') === 'true'
+            },
+            sbot: {
+                host: urlParams.get('sbHost') || '127.0.0.1',
+                port: parseInt(urlParams.get('sbPort') ?? 8080, 10),
+                sendChat: urlParams.get('sbChat') !== '0',
+                actions: {}
+            }
+        };
+
+        SB_EVENT_DEFINITIONS.forEach(def => {
+            layout.sbot.actions[def.key] = (urlParams.get(`act_${def.key}`) || '').trim();
+        });
+
+        let selectedMod = 'clock';
+        let canvasZoom = 1;
+        let client = null;
+        let lastLanternResetDay = -1;
+
+        // ==========================================
+        // CANVAS SIZING & SAFE AREA
+        // ==========================================
+        function applyCanvasDimensions() {
+            const canvas = document.getElementById('overlay-canvas');
+            canvas.style.width = layout.canvas.w + 'px';
+            canvas.style.height = layout.canvas.h + 'px';
+
+            const isVertical = layout.canvas.h > layout.canvas.w;
+            const minimap = document.getElementById('guide-minimap');
+            const ammo = document.getElementById('guide-ammo');
+
+            if (isVertical) {
+                // Adjust guide for TikTok/Shorts vertical canvases
+                minimap.style.left = '30px';
+                minimap.style.bottom = '220px';
+                minimap.style.width = '240px';
+                minimap.style.height = '140px';
+                minimap.innerText = 'Phone UI Safe Zone';
+
+                ammo.style.right = '30px';
+                ammo.style.top = '120px';
+                ammo.style.width = '180px';
+                ammo.style.height = '80px';
+            } else {
+                minimap.style.left = '34px';
+                minimap.style.bottom = '36px';
+                minimap.style.width = '290px';
+                minimap.style.height = '185px';
+                minimap.innerText = 'GTA Minimap Safe Area';
+
+                ammo.style.right = '38px';
+                ammo.style.top = '34px';
+                ammo.style.width = '220px';
+                ammo.style.height = '95px';
+            }
+
+            document.getElementById('canvas-label').innerText = `${layout.canvas.w} × ${layout.canvas.h} CANVAS`;
+            document.getElementById('rec-obs-size').innerText = `OBS Size: ${layout.canvas.w} × ${layout.canvas.h}`;
+
+            fitStageViewport();
+            updateGeneratedUrl();
+        }
+
+        function setCanvasPreset(w, h) {
+            layout.canvas.w = w;
+            layout.canvas.h = h;
+            document.getElementById('canvas-w').value = w;
+            document.getElementById('canvas-h').value = h;
+
+            document.querySelectorAll('#group-canvas-presets .pill-btn').forEach(b => {
+                b.classList.toggle('active', b.innerText.includes(w > h ? (w >= 3840 ? '4K' : (w >= 2560 ? '1440p' : '1080p')) : 'Vertical'));
+            });
+
+            applyCanvasDimensions();
+        }
+
+        function onCustomCanvasInput() {
+            layout.canvas.w = parseInt(document.getElementById('canvas-w').value, 10) || 1920;
+            layout.canvas.h = parseInt(document.getElementById('canvas-h').value, 10) || 1080;
+            applyCanvasDimensions();
+        }
+
+        function fitStageViewport() {
+            if (IS_OBS_MODE) return;
+            const vp = document.getElementById('stage-viewport');
+            const canvas = document.getElementById('overlay-canvas');
+            const pad = 40;
+            const scaleX = (vp.clientWidth - pad) / layout.canvas.w;
+            const scaleY = (vp.clientHeight - pad) / layout.canvas.h;
+            canvasZoom = Math.min(scaleX, scaleY, 1);
+            canvas.style.transform = `scale(${canvasZoom})`;
+        }
+
+        window.addEventListener('resize', fitStageViewport);
+
+        // ==========================================
+        // DRAG & DROP LOGIC
+        // ==========================================
+        let dragTarget = null;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let modOriginX = 0;
+        let modOriginY = 0;
+
+        function startDrag(e, modKey) {
+            if (IS_OBS_MODE) return;
+            selectModule(modKey);
+            dragTarget = modKey;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            modOriginX = layout[modKey].x;
+            modOriginY = layout[modKey].y;
+
+            window.addEventListener('mousemove', onDragMove);
+            window.addEventListener('mouseup', onDragEnd);
+        }
+
+        function onDragMove(e) {
+            if (!dragTarget) return;
+            const dx = Math.round((e.clientX - dragStartX) / canvasZoom);
+            const dy = Math.round((e.clientY - dragStartY) / canvasZoom);
+            layout[dragTarget].x = Math.max(0, Math.min(layout.canvas.w - 40, modOriginX + dx));
+            layout[dragTarget].y = Math.max(0, Math.min(layout.canvas.h - 40, modOriginY + dy));
+
+            document.getElementById('mod-x').value = layout[dragTarget].x;
+            document.getElementById('mod-y').value = layout[dragTarget].y;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function onDragEnd() {
+            dragTarget = null;
+            window.removeEventListener('mousemove', onDragMove);
+            window.removeEventListener('mouseup', onDragEnd);
+        }
+
+        // ==========================================
+        // INSPECTOR & SUB-TAB SELECTION
+        // ==========================================
+        function selectModule(modKey) {
+            const isLayoutMod = (modKey === 'clock' || modKey === 'icons' || modKey === 'timers');
+
+            document.getElementById('inspector-card').style.display = isLayoutMod ? 'block' : 'none';
+            document.getElementById('icons-options-card').style.display = (modKey === 'icons') ? 'block' : 'none';
+            document.getElementById('timers-options-card').style.display = (modKey === 'timers') ? 'block' : 'none';
+            document.getElementById('canvas-options-card').style.display = (modKey === 'canvas') ? 'block' : 'none';
+            document.getElementById('sbot-panel').style.display = (modKey === 'sbot') ? 'flex' : 'none';
+            document.getElementById('global-options-card').style.display = (modKey === 'sbot' || modKey === 'canvas') ? 'none' : 'block';
+
+            if (isLayoutMod) selectedMod = modKey;
+
+            ['clock', 'icons', 'timers', 'canvas', 'sbot'].forEach(k => {
+                document.getElementById('tab-' + k).classList.toggle('active', k === modKey);
+                const el = document.getElementById('mod-' + k);
+                if (el) el.classList.toggle('selected-module', k === modKey);
+            });
+
+            if (isLayoutMod) populateInspector();
+        }
+
+        function populateInspector() {
+            const m = layout[selectedMod];
+            const titles = {
+                clock: '1. CLOCK & WEATHER MODULE',
+                icons: '2. EVENT ICONS MODULE',
+                timers: '3. EVENT TIMERS MODULE'
+            };
+            document.getElementById('inspector-title').innerText = titles[selectedMod];
+            document.getElementById('mod-show-chk').checked = m.show;
+            document.getElementById('mod-x').value = m.x;
+            document.getElementById('mod-y').value = m.y;
+            document.getElementById('mod-scale').value = m.scale;
+            document.getElementById('mod-scale-label').innerText = `${Math.round(m.scale * 100)}%`;
+
+            document.getElementById('row-mod-width').style.display = (selectedMod === 'icons') ? 'none' : 'block';
+            document.getElementById('mod-width').value = m.width;
+            document.getElementById('mod-width-label').innerText = `${m.width}px`;
+
+            document.getElementById('row-mod-dir').style.display = (selectedMod === 'clock') ? 'none' : 'block';
+            document.getElementById('row-mod-valign').style.display = (selectedMod === 'clock') ? 'none' : 'block';
+
+            document.querySelectorAll('#group-dir .pill-btn').forEach(b => b.classList.toggle('active', b.dataset.val === m.dir));
+            document.querySelectorAll('#group-align .pill-btn').forEach(b => b.classList.toggle('active', b.dataset.val === m.align));
+            document.querySelectorAll('#group-valign .pill-btn').forEach(b => b.classList.toggle('active', b.dataset.val === m.vAlign));
+        }
+
+        function onModToggle(val) {
+            layout[selectedMod].show = val;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function onCoordInput() {
+            layout[selectedMod].x = parseInt(document.getElementById('mod-x').value, 10) || 0;
+            layout[selectedMod].y = parseInt(document.getElementById('mod-y').value, 10) || 0;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function onScaleInput(val) {
+            layout[selectedMod].scale = parseFloat(val);
+            document.getElementById('mod-scale-label').innerText = `${Math.round(val * 100)}%`;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function onWidthInput(val) {
+            layout[selectedMod].width = parseInt(val, 10);
+            document.getElementById('mod-width-label').innerText = `${val}px`;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function setModProp(prop, val) {
+            layout[selectedMod][prop] = val;
+            populateInspector();
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function setIconFilter(mode) {
+            layout.icons.filter = mode;
+            document.querySelectorAll('#group-icon-filter .pill-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.val === mode);
+            });
+            update();
+            updateGeneratedUrl();
+        }
+
+        function onTimerToggle(timerKey, isChecked) {
+            layout.timers[timerKey] = isChecked;
+            update();
+            updateGeneratedUrl();
+        }
+
+        function syncGlobalToggles() {
+            layout.global.iconsMode = document.getElementById('chk-icons').checked;
+            layout.global.hwWeather = document.getElementById('chk-hwWeather').checked;
+            update();
+            updateGeneratedUrl();
+        }
+
+        // ==========================================
+        // LAYOUT ENGINE STYLING
+        // ==========================================
+        function applyLayoutStyles() {
+            const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+            const originMap = { left: 'left', center: 'center', right: 'right' };
+
+            // 1. Clock
+            const c = layout.clock;
+            const modClock = document.getElementById('mod-clock');
+            modClock.style.display = c.show ? 'flex' : 'none';
+            modClock.style.left = `${c.x}px`;
+            modClock.style.top = `${c.y}px`;
+            modClock.style.transformOrigin = `top ${originMap[c.align]}`;
+            modClock.style.transform = `scale(${c.scale})`;
+            modClock.style.alignItems = alignMap[c.align];
+            document.getElementById('main-widget').style.minWidth = `${c.width}px`;
+
+            // 2. Icons
+            const ic = layout.icons;
+            const modIcons = document.getElementById('mod-icons');
+            const eventBar = document.getElementById('event-bar');
+            modIcons.style.display = ic.show ? 'flex' : 'none';
+            modIcons.style.left = `${ic.x}px`;
+            modIcons.style.top = `${ic.y}px`;
+            modIcons.style.transformOrigin = `${ic.vAlign === 'bottom' ? 'bottom' : 'top'} ${originMap[ic.align]}`;
+            modIcons.style.transform = `scale(${ic.scale})`;
+
+            if (ic.dir === 'v') {
+                eventBar.style.flexDirection = ic.vAlign === 'bottom' ? 'column-reverse' : 'column';
+                eventBar.style.alignItems = alignMap[ic.align];
+                eventBar.style.width = 'auto';
+            } else {
+                eventBar.style.flexDirection = 'row';
+                eventBar.style.justifyContent = alignMap[ic.align];
+                eventBar.style.width = 'auto';
+            }
+
+            // 3. Timers
+            const tm = layout.timers;
+            const modTimers = document.getElementById('mod-timers');
+            const timersWrap = document.getElementById('timers-wrapper');
+            modTimers.style.display = tm.show ? 'flex' : 'none';
+            modTimers.style.left = `${tm.x}px`;
+            modTimers.style.top = `${tm.y}px`;
+            modTimers.style.transformOrigin = `${tm.vAlign === 'bottom' ? 'bottom' : 'top'} ${originMap[tm.align]}`;
+            modTimers.style.transform = `scale(${tm.scale})`;
+
+            if (tm.dir === 'h') {
+                timersWrap.style.flexDirection = 'row';
+                timersWrap.style.justifyContent = alignMap[tm.align];
+            } else {
+                timersWrap.style.flexDirection = tm.vAlign === 'bottom' ? 'column-reverse' : 'column';
+                timersWrap.style.alignItems = alignMap[tm.align];
+            }
+
+            document.querySelectorAll('#timers-wrapper .info-box').forEach(b => {
+                b.style.minWidth = `${tm.width}px`;
+            });
+        }
+
+        // ==========================================
+        // URL PARAMETER GENERATION
+        // ==========================================
+        function updateGeneratedUrl() {
+            if (IS_OBS_MODE) return;
+            let base = document.getElementById('base-url-input').value.trim();
+            if (base && !base.endsWith('/')) base += '/';
+
+            const p = new URLSearchParams();
+            p.set('obs', '1');
+
+            // Canvas params
+            if (layout.canvas.w !== 1920 || layout.canvas.h !== 1080) {
+                p.set('canvasW', layout.canvas.w);
+                p.set('canvasH', layout.canvas.h);
+            }
+
+            // Clock params
+            const c = layout.clock;
+            if (!c.show) p.set('cShow', '0');
+            p.set('cX', c.x);
+            p.set('cY', c.y);
+            if (c.scale !== 1) p.set('cS', c.scale);
+            if (c.width !== 260) p.set('cW', c.width);
+            if (c.align !== 'right') p.set('cA', c.align);
+
+            // Icons params
+            const ic = layout.icons;
+            if (!ic.show) p.set('iShow', '0');
+            p.set('iX', ic.x);
+            p.set('iY', ic.y);
+            if (ic.scale !== 1) p.set('iS', ic.scale);
+            if (ic.dir !== 'h') p.set('iD', ic.dir);
+            if (ic.align !== 'right') p.set('iA', ic.align);
+            if (ic.vAlign !== 'top') p.set('iV', ic.vAlign);
+            if (ic.filter !== 'all') p.set('iconFilter', ic.filter);
+
+            // Timers params
+            const tm = layout.timers;
+            if (!tm.show) p.set('tShow', '0');
+            p.set('tX', tm.x);
+            p.set('tY', tm.y);
+            if (tm.scale !== 1) p.set('tS', tm.scale);
+            if (tm.width !== 260) p.set('tW', tm.width);
+            if (tm.dir !== 'v') p.set('tD', tm.dir);
+            if (tm.align !== 'right') p.set('tA', tm.align);
+            if (tm.vAlign !== 'top') p.set('tV', tm.vAlign);
+
+            // Individual timer show/hide toggles
+            if (!tm.showLantern) p.set('showLantern', 'false');
+            if (!tm.showSasquatch) p.set('showSasquatch', 'false');
+            if (!tm.showSurvival) p.set('showSurvival', 'false');
+            if (!tm.showNextWeather) p.set('showNextWeather', 'false');
+
+            // Global params
+            const g = layout.global;
+            if (g.iconsMode) p.set('icons', 'true');
+            if (g.hwWeather) p.set('hwWeather', 'true');
+
+            // Streamer.bot params
+            const sb = layout.sbot;
+            if (sb.host !== '127.0.0.1') p.set('sbHost', sb.host);
+            if (sb.port !== 8080) p.set('sbPort', sb.port);
+            if (!sb.sendChat) p.set('sbChat', '0');
+
+            SB_EVENT_DEFINITIONS.forEach(def => {
+                const actId = (sb.actions[def.key] || '').trim();
+                if (actId) p.set(`act_${def.key}`, actId);
+            });
+
+            document.getElementById('generated-url-box').innerText = `${base}customLayout.html?${p.toString()}`;
+        }
+
+        function copyObsUrl() {
+            const urlText = document.getElementById('generated-url-box').innerText;
+            navigator.clipboard.writeText(urlText).then(() => {
+                const btn = document.getElementById('copy-url-btn');
+                const orig = btn.innerText;
+                btn.innerText = '✅ Copied OBS URL to Clipboard!';
+                btn.style.background = '#2ecc71';
+                setTimeout(() => {
+                    btn.innerText = orig;
+                    btn.style.background = '';
+                }, 2000);
+            });
+        }
+
+        function toggleHudGuide(btn) {
+            btn.classList.toggle('active');
+            const show = btn.classList.contains('active');
+            document.getElementById('guide-minimap').style.display = show ? 'flex' : 'none';
+            document.getElementById('guide-ammo').style.display = show ? 'flex' : 'none';
+        }
+
+        function setCanvasBg(mode, btn) {
+            btn.parentElement.querySelectorAll('.tb-btn:not(#btn-hud)').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('overlay-canvas').className = 'canvas-bg-' + mode;
+        }
+
+        function resetPositions() {
+            layout.clock = { show: true, x: 1580, y: 150, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top' };
+            layout.icons = { show: true, x: 1370, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
+            layout.timers = { show: true, x: 1580, y: 360, scale: 1, width: 260, dir: 'v', align: 'right', vAlign: 'top', showLantern: true, showSasquatch: true, showSurvival: true, showNextWeather: true };
+            populateInspector();
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        // ==========================================
+        // STREAMER.BOT CONNECTION & DISPATCH
+        // ==========================================
+        function connectStreamerBot() {
+            if (client && typeof client.disconnect === 'function') {
+                try { client.disconnect(); } catch (e) {}
+            }
+
+            const dot = document.getElementById('sb-status-dot');
+            const txt = document.getElementById('sb-status-text');
+
+            try {
+                client = new StreamerbotClient({
+                    host: layout.sbot.host,
+                    port: layout.sbot.port,
+                    onConnect: () => {
+                        if (dot && txt) {
+                            dot.classList.add('connected');
+                            txt.innerHTML = `<span class="status-dot connected"></span>Connected (${layout.sbot.host}:${layout.sbot.port})`;
+                        }
+                    },
+                    onDisconnect: () => {
+                        if (dot && txt) {
+                            dot.classList.remove('connected');
+                            txt.innerHTML = `<span class="status-dot"></span>Disconnected`;
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn("Streamer.bot init error:", e);
+            }
+        }
+
+        function fireStreamerBotEvent(eventKey, eventName, defaultMsg) {
+            if (!client) return;
+
+            const actionId = (layout.sbot.actions[eventKey] || '').trim();
+            const gameTime = document.getElementById('time-label')?.innerText || '00:00';
+            const weather = document.getElementById('current-weather-label')?.innerText || 'Clear';
+
+            if (actionId) {
+                client.doAction(actionId, {
+                    eventKey: eventKey,
+                    eventName: eventName,
+                    gameTime: gameTime,
+                    weather: weather
+                });
+            }
+
+            if (layout.sbot.sendChat && defaultMsg) {
+                client.sendMessage(defaultMsg);
+            }
+        }
+
+        function testSbAction(eventKey, label) {
+            const actionId = (layout.sbot.actions[eventKey] || '').trim();
+            if (!actionId) {
+                alert(`Paste an Action ID for "${label}" first to test.`);
+                return;
+            }
+            fireStreamerBotEvent(eventKey, label, "");
+        }
+
+        function buildStreamerBotUI() {
+            const container = document.getElementById('sb-actions-list');
+            container.innerHTML = '';
+
+            SB_EVENT_DEFINITIONS.forEach(def => {
+                const row = document.createElement('div');
+                row.className = 'sb-event-row';
+                row.innerHTML = `
+                    <div class="sb-event-header">
+                        <span>${def.label}</span>
+                        <span class="season-tag">${def.season}</span>
+                    </div>
+                    <div class="sb-input-group">
+                        <input type="text" class="sb-text-input" placeholder="Paste Action ID GUID"
+                            value="${layout.sbot.actions[def.key] || ''}"
+                            oninput="onActionIdInput('${def.key}', this.value)">
+                        <button class="sb-test-btn" onclick="testSbAction('${def.key}', '${def.label.replace(/'/g, "\\'")}')">▶ Test</button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function onActionIdInput(key, val) {
+            layout.sbot.actions[key] = val.trim();
+            updateGeneratedUrl();
+        }
+
+        function onSbConfigChange() {
+            layout.sbot.host = document.getElementById('sb-host-input').value.trim() || '127.0.0.1';
+            layout.sbot.port = parseInt(document.getElementById('sb-port-input').value, 10) || 8080;
+            layout.sbot.sendChat = document.getElementById('chk-sb-chat').checked;
+            updateGeneratedUrl();
+        }
+
+        // ==========================================
+        // GTA CLOCK, WEATHER & TIMERS RUNTIME
+        // ==========================================
+        const SEASONS = {
+            "420WEEK": {
+                start: "2026-04-16T09:00:00Z",
+                end:   "2026-04-30T09:00:00Z"
+            },
+            "HALLOWEEN": {
+                start: "2026-10-01T09:00:00Z",
+                end:   "2026-11-05T09:00:00Z",
+                hwPhase1: {
+                    start: "2026-10-08T09:00:00Z",
+                    end:   "2026-10-26T09:00:00Z"
+                },
+                hwPhase2: {
+                    start: "2026-10-26T09:00:00Z",
+                    end:   "2026-11-05T09:00:00Z"
+                }
+            },
+            "CHRISTMAS": {
+                start: "2026-12-17T09:00:00Z",
+                end:   "2027-01-07T09:00:00Z"
+            }
+        };
+
+        const DAY_ANCHOR = 6;
+        const LOOP_MAX = 384;
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const sasquatchAudio = new Audio('./sasquatch.wav');
+        const survivalAudio = new Audio('./survival.mp3');
+
+        const eventLibrary = {
+            "420WEEK": [
+                { key: "sasquatch", name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy", msg: "👣 sasquatch spotted in the fog!", notified: false },
+                { key: "survival", name: "Stoner Survival", icon: "stonerSurvival.png", startH: 16.33, endH: 20.33, msg: "💨 Stoner Survival active!", notified: false }
+            ],
+            "CHRISTMAS": [
+                { key: "yeti", name: "Yeti", icon: "yeti.png", startH: 21, endH: 6, msg: "❄️ A Yeti has been spotted!", notified: false },
+                { key: "gooch", name: "Gooch", icon: "gooch.png", startH: 0, endH: 24, msg: "🎁 The Gooch is on the prowl!", notified: false }
+            ],
+            "HALLOWEEN": [
+                { key: "lantern", name: "Jack O' Lanterns", icon: "halloween.png", startH: 0, endH: 24, msg: "", notified: false },
+                { key: "cerberus", name: "Cerberus", icon: "cerberus.webp", startH: 0, endH: 24, msg: "", notified: false },
+                { key: "sasquatch", name: "sasquatch", icon: "sasquatch.png", startH: 3.5, endH: 8.5, reqWeather: "foggy", msg: "👣 sasquatch spotted in the fog!", notified: false },
+                { key: "possessed", name: "Possessed Animal", icon: "posessedAnimal.png", startH: 20, endH: 1, msg: "🐾 Wildlife is acting strange...", notified: false },
+                // { key: "lsslasher", name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
+                { key: "hwslasher", name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
+                { key: "christine", name: "Christine", icon: "christine.webp", startH: 21, endH: 5, msg: "🚗 Phantom Car (Christine) is hunting!", notified: false },
+                { key: "ghosts", name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
+                { key: "ufo", name: "UFO Sightings", icon: "ufo.webp", phase: "UFO", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
+            ]
+        };
+
+        const weatherSchedule = [
+            { "weather": "Partly Cloudy", "duration": 4 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Mostly Cloudy", "duration": 4 }, { "weather": "Clear", "duration": 3 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Clear", "duration": 12 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Clear", "duration": 10 },
+            { "weather": "Hazy", "duration": 4 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Cloudy", "duration": 7 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Cloudy", "duration": 6 },
+            { "weather": "Partly Cloudy", "duration": 6 }, { "weather": "Foggy", "duration": 4 },
+            { "weather": "Cloudy", "duration": 10 }, { "weather": "Mostly Clear", "duration": 12 },
+            { "weather": "Partly Cloudy", "duration": 1 }, { "weather": "Drizzling", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 17 }, { "weather": "Misty", "duration": 3 },
+            { "weather": "Partly Cloudy", "duration": 3 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 3 }, { "weather": "Cloudy", "duration": 11 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Mostly Cloudy", "duration": 4 },
+            { "weather": "Foggy", "duration": 4 }, { "weather": "Clear", "duration": 17 },
+            { "weather": "Mostly Clear", "duration": 20 }, { "weather": "Foggy", "duration": 5 },
+            { "weather": "Partly Cloudy", "duration": 19 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 22 }, { "weather": "Misty", "duration": 2 },
+            { "weather": "Mostly Clear", "duration": 1 }, { "weather": "Raining", "duration": 3 },
+            { "weather": "Drizzling", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 16 },
+            { "weather": "Misty", "duration": 2 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Cloudy", "duration": 5 }, { "weather": "Partly Cloudy", "duration": 15 },
+            { "weather": "Misty", "duration": 3 }, { "weather": "Partly Cloudy", "duration": 5 },
+            { "weather": "Mostly Cloudy", "duration": 6 }, { "weather": "Partly Cloudy", "duration": 12 },
+            { "weather": "Mostly Cloudy", "duration": 12 }, { "weather": "Partly Cloudy", "duration": 7 },
+            { "weather": "Clear", "duration": 30 }, { "weather": "Partly Cloudy", "duration": 2 },
+            { "weather": "Raining", "duration": 7 }, { "weather": "Drizzling", "duration": 1 },
+            { "weather": "Partly Cloudy", "duration": 7 }
+        ];
+
+        function getLoopPosition(totalHours) {
+            const loopHrFull = totalHours % LOOP_MAX;
+            const loopHrFloored = Math.floor(loopHrFull);
+
+            let acc = 0;
+            for (let i = 0; i < weatherSchedule.length; i++) {
+                if (loopHrFloored >= acc && loopHrFloored < (acc + weatherSchedule[i].duration)) {
+                    return {
+                        index: i,
+                        hourInLoop: loopHrFloored,
+                        remaining: (acc + weatherSchedule[i].duration) - loopHrFull
+                    };
+                }
+                acc += weatherSchedule[i].duration;
+            }
+            return { index: 0, hourInLoop: 0, remaining: 0 };
+        }
+
+        function getSeasonState(todayStr) {
+            const s420 = SEASONS["420WEEK"];
+            const sHw = SEASONS["HALLOWEEN"];
+            const sXmas = SEASONS["CHRISTMAS"];
+
+            const is420 = (todayStr >= s420.start && todayStr < s420.end);
+            const isHalloween = (todayStr >= sHw.start && todayStr < sHw.end) || layout.global.hwWeather;
+            const isChristmas = (todayStr >= sXmas.start && todayStr < sXmas.end);
+
+            const isHWPhase1 = isHalloween && (todayStr >= sHw.hwPhase1.start && todayStr < sHw.hwPhase1.end);
+            const isHWPhase2 = isHalloween && ((todayStr >= sHw.hwPhase2.start && todayStr < sHw.hwPhase2.end) || layout.global.hwWeather);
+
+            let activeSeason = "NONE";
+            if (is420) activeSeason = "420WEEK";
+            else if (isHalloween) activeSeason = "HALLOWEEN";
+            else if (isChristmas) activeSeason = "CHRISTMAS";
+
+            return {
+                activeSeason,
+                is420,
+                isHalloween,
+                isHWPhase1,
+                isHWPhase2,
+                isSasquatchActive: (is420 || isHalloween)
+            };
+        }
+
+        function updateLanternTimer() {
+            const now = new Date();
+            const resetTime = new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate(),
+                6, 0, 0, 0
+            ));
+
+            if (now.getTime() >= resetTime.getTime()) {
+                if (IS_OBS_MODE && lastLanternResetDay !== -1 && lastLanternResetDay !== now.getUTCDate()) {
+                    fireStreamerBotEvent('lantern', "Jack O' Lantern Daily Reset", "🎃 Daily Jack O' Lantern cycle has reset!");
+                }
+                lastLanternResetDay = now.getUTCDate();
+                resetTime.setUTCDate(resetTime.getUTCDate() + 1);
+            }
+
+            const diffSeconds = Math.max(0, Math.floor((resetTime.getTime() - now.getTime()) / 1000));
+            document.getElementById('lantern-timer').innerText = formatLongTimer(diffSeconds);
+        }
+
+        function update() {
+            const now = new Date();
+            const todayStr = now.toISOString();
+            const rawUnix = now.getTime() / 1000;
+            const totalMinutes = rawUnix / 2;
+            const totalHours = totalMinutes / 60;
+            const h = Math.floor(totalMinutes / 60) % 24;
+            const m = Math.floor(totalMinutes % 60);
+            const decHour = h + (m / 60) + ((rawUnix % 2) / 120);
+            const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+            const loopData = getLoopPosition(totalHours);
+            const currentRawWeather = weatherSchedule[loopData.index].weather;
+
+            document.getElementById('day-label').innerText = days[(Math.floor(totalMinutes / 1440) + DAY_ANCHOR) % 7].toUpperCase();
+            document.getElementById('time-label').innerText = timeStr;
+            document.getElementById('current-weather-label').innerText = currentRawWeather;
+
+            const seasonState = getSeasonState(todayStr);
+
+            // Individual timer visibility
+            const showLantern = seasonState.isHalloween && layout.timers.showLantern;
+            const showSasquatch = seasonState.isSasquatchActive && layout.timers.showSasquatch;
+            const showSurvival = seasonState.is420 && layout.timers.showSurvival;
+            const showNextWeather = layout.timers.showNextWeather;
+
+            document.getElementById('lantern-box').style.display = showLantern ? "flex" : "none";
+            document.getElementById('sasquatch-box').style.display = showSasquatch ? "flex" : "none";
+            document.getElementById('survival-box').style.display = showSurvival ? "flex" : "none";
+            document.getElementById('weather-box').style.display = showNextWeather ? "flex" : "none";
+
+            updateWeatherDisplay(loopData, h, m, seasonState);
+            updateEventCards(decHour, currentRawWeather, seasonState);
+
+            if (showLantern) updateLanternTimer();
+            if (showSasquatch) findNextsasquatch(loopData, decHour, rawUnix, currentRawWeather);
+            if (showSurvival) findNextSurvival(decHour, rawUnix);
+        }
+
+        function updateWeatherDisplay(loopData, h, m, seasonState) {
+            const widget = document.getElementById('main-widget');
+            const mainWeatherContainer = document.getElementById('main-weather-container');
+            const isDay = (h >= 6 && h < 21);
+            const current = weatherSchedule[loopData.index];
+            const nextIdx = (loopData.index + 1) % weatherSchedule.length;
+            const next = weatherSchedule[nextIdx];
+
+            if (layout.global.iconsMode) {
+                widget.classList.remove('full-bg');
+                mainWeatherContainer.style.display = "flex";
+                widget.style.backgroundImage = "url('icons/day.png'), url('icons/night.png')";
+                if (isDay) {
+                    widget.style.backgroundPosition = "center 0px, center 100px";
+                    widget.classList.remove('night-mode');
+                } else {
+                    widget.style.backgroundPosition = "center -100px, center 0px";
+                    widget.classList.add('night-mode');
+                }
+            } else {
+                widget.classList.add('full-bg');
+                mainWeatherContainer.style.display = "none";
+
+                const weatherKey = current.weather.charAt(0).toLowerCase() + current.weather.slice(1).replace(/\s+/g, '');
+                const timeSuffix = isDay ? "Day" : "Night";
+                const bgPath = `icons/widget-bg/${weatherKey}-${timeSuffix}.png`;
+
+                widget.style.backgroundImage = `url('${bgPath}')`;
+                widget.classList.toggle('night-mode', !isDay);
+            }
+
+            document.getElementById('weather-icon').src = getIconPath(current.weather, isDay);
+
+            const finalSeconds = Math.floor(loopData.remaining * 120);
+            document.getElementById('next-name').innerText = next.weather;
+            document.getElementById('next-timer').innerText = formatTimer(finalSeconds);
+            document.getElementById('next-weather-icon').src = getIconPath(next.weather, isDay);
+
+            const totalDayMins = (h * 60) + m;
+            const isHalloweenHours = (totalDayMins >= 1170 || totalDayMins < 390);
+
+            if (seasonState.isHWPhase2 && (isHalloweenHours || (!IS_OBS_MODE && layout.global.hwWeather))) {
+                widget.classList.add('halloween-active');
+            } else {
+                widget.classList.remove('halloween-active');
+            }
+        }
+
+        function updateEventCards(decHour, currentWeather, seasonState) {
+            const bar = document.getElementById('event-bar');
+            bar.innerHTML = "";
+            if (seasonState.activeSeason === "NONE") return;
+
+            const activeEvents = eventLibrary[seasonState.activeSeason] || [];
+            const previewAllInStudio = !IS_OBS_MODE && layout.global.hwWeather;
+
+            activeEvents.forEach(ev => {
+                // Check if user set Icon Filter to "timedOnly" (hide 24/7 all-day icons)
+                const isAllDayEvent = (ev.startH === 0 && ev.endH === 24);
+                if (layout.icons.filter === 'timedOnly' && isAllDayEvent) {
+                    return;
+                }
+
+                if (!previewAllInStudio && ev.phase === "UFO" && !seasonState.isHWPhase1 && !seasonState.isHWPhase2) return;
+
+                const startH = (seasonState.isHWPhase2 && ev.hwStartH !== undefined) ? ev.hwStartH : ev.startH;
+                const endH = (seasonState.isHWPhase2 && ev.hwEndH !== undefined) ? ev.hwEndH : ev.endH;
+
+                const hourOk = (startH < endH) ? (decHour >= startH && decHour < endH) : (decHour >= startH || decHour < endH);
+                const weatherOk = !ev.reqWeather || ev.reqWeather.toLowerCase() === currentWeather.toLowerCase();
+
+                if (previewAllInStudio || (hourOk && weatherOk)) {
+                    const card = document.createElement('div');
+                    card.className = 'event-card';
+                    card.innerHTML = `<img src="icons/${ev.icon}" title="${ev.name}">`;
+                    bar.appendChild(card);
+
+                    if (IS_OBS_MODE && !ev.notified) {
+                        fireStreamerBotEvent(ev.key, ev.name, ev.msg);
+
+                        if (ev.key === "sasquatch") sasquatchAudio.play().catch(() => {});
+                        if (ev.key === "survival") survivalAudio.play().catch(() => {});
+                        ev.notified = true;
+                    }
+                } else {
+                    ev.notified = false;
+                }
+            });
+        }
+
+        function findNextSurvival(decHour, currentUnix) {
+            const survivalStart = 16.33;
+            const survivalEnd = 20.33;
+            const box = document.getElementById('survival-box');
+
+            if (decHour >= survivalStart && decHour < survivalEnd) {
+                box.classList.add('event-active-status');
+                const remainingHours = survivalEnd - decHour;
+                const secondsLeft = Math.max(0, Math.floor(remainingHours * 120));
+                document.getElementById('survival-val').innerText = "ACTIVE";
+                document.getElementById('survival-timer').innerText = formatLongTimer(secondsLeft);
+            } else {
+                box.classList.remove('event-active-status');
+                let waitHours = survivalStart - decHour;
+                if (waitHours < 0) waitHours += 24;
+                const secondsUntil = Math.max(0, Math.floor(waitHours * 120));
+                const spawnDate = new Date((currentUnix + secondsUntil) * 1000);
+                document.getElementById('survival-val').innerText = spawnDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('survival-timer').innerText = formatLongTimer(secondsUntil);
+            }
+        }
+
+        function findNextsasquatch(loopData, decHour, currentUnix, currentWeather) {
+            const BF_START = 3.5;
+            const BF_END = 8.5;
+            const box = document.getElementById('sasquatch-box');
+            const timerElem = document.getElementById('sasquatch-timer');
+            const valElem = document.getElementById('sasquatch-val');
+
+            if (decHour >= BF_START && decHour < BF_END && currentWeather.toLowerCase() === "foggy") {
+                box.classList.add('event-active-status');
+                const remainingHours = BF_END - decHour;
+                const secondsLeft = Math.max(0, Math.floor(remainingHours * 120));
+                valElem.innerText = "ACTIVE";
+                timerElem.innerText = formatLongTimer(secondsLeft);
+                return;
+            }
+
+            box.classList.remove('event-active-status');
+            let checkIdx = loopData.index;
+            let cumulativeWaitHours = 0;
+
+            for (let i = 0; i < weatherSchedule.length * 2; i++) {
+                let block = weatherSchedule[checkIdx % weatherSchedule.length];
+                let currentRemaining = (i === 0 ? loopData.remaining : block.duration);
+                let blockStartInGameDay = (decHour + cumulativeWaitHours) % 24;
+                let blockEndInGameDay = (blockStartInGameDay + currentRemaining);
+
+                if (block.weather.toLowerCase() === "foggy") {
+                    let targetHour = -1;
+                    if (blockStartInGameDay <= BF_START && blockEndInGameDay > BF_START) targetHour = BF_START;
+                    else if (blockStartInGameDay > BF_START && blockStartInGameDay < BF_END) targetHour = blockStartInGameDay;
+
+                    if (targetHour !== -1) {
+                        let hoursToWait = cumulativeWaitHours + (targetHour > blockStartInGameDay ? (targetHour - blockStartInGameDay) : 0);
+                        const secondsUntil = Math.max(0, Math.floor(hoursToWait * 120));
+                        const spawnDate = new Date((currentUnix + secondsUntil) * 1000);
+                        valElem.innerText = spawnDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        timerElem.innerText = formatLongTimer(secondsUntil);
+                        return;
+                    }
+                }
+                cumulativeWaitHours += currentRemaining;
+                checkIdx++;
+            }
+
+            valElem.innerText = "N/A";
+            timerElem.innerText = "00:00:00";
+        }
+
+        function getIconPath(n, d) {
+            n = n.toLowerCase();
+            if (n.includes("rain")) return d ? "icons/raining-day.png" : "icons/raining-night.png";
+            if (n.includes("drizz")) return d ? "icons/drizzling-day.png" : "icons/drizzling-night.png";
+            if (n.includes("mist") || n.includes("hazy")) return "icons/misty.png";
+            if (n.includes("fog")) return d ? "icons/foggy-day.png" : "icons/foggy-night.png";
+            if (n.includes("mostly clear")) return d ? "icons/mostlyClear-day.png" : "icons/mostlyClear-night.png";
+            if (n.includes("partly cloudy")) return d ? "icons/partlyCloudy-day.png" : "icons/partlyCloudy-night.png";
+            if (n.includes("mostly cloudy")) return d ? "icons/mostlyCloudy-day.png" : "icons/mostlyCloudy-night.png";
+            if (n.includes("cloudy")) return d ? "icons/cloudy-day.png" : "icons/cloudy-night.png";
+            return d ? "icons/clear-day.png" : "icons/clear-night.png";
+        }
+
+        function formatTimer(secs) {
+            const totalSecs = Math.max(0, secs);
+            const m = Math.floor(totalSecs / 60);
+            const s = Math.floor(totalSecs % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function formatLongTimer(secs) {
+            const totalSecs = Math.max(0, secs);
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // Initialize Studio or OBS Mode
+        window.addEventListener('DOMContentLoaded', () => {
+            connectStreamerBot();
+
+            if (!IS_OBS_MODE) {
+                const loc = window.location.href;
+                if (loc.startsWith('http')) {
+                    document.getElementById('base-url-input').value = loc.substring(0, loc.lastIndexOf('/') + 1);
+                }
+
+                document.getElementById('chk-icons').checked = layout.global.iconsMode;
+                document.getElementById('chk-hwWeather').checked = layout.global.hwWeather;
+
+                // Hydrate individual timer checkboxes
+                document.getElementById('chk-timer-lantern').checked = layout.timers.showLantern;
+                document.getElementById('chk-timer-sasquatch').checked = layout.timers.showSasquatch;
+                document.getElementById('chk-timer-survival').checked = layout.timers.showSurvival;
+                document.getElementById('chk-timer-weather').checked = layout.timers.showNextWeather;
+
+                document.getElementById('sb-host-input').value = layout.sbot.host;
+                document.getElementById('sb-port-input').value = layout.sbot.port;
+                document.getElementById('chk-sb-chat').checked = layout.sbot.sendChat;
+
+                document.getElementById('canvas-w').value = layout.canvas.w;
+                document.getElementById('canvas-h').value = layout.canvas.h;
+
+                document.querySelectorAll('#group-icon-filter .pill-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.val === layout.icons.filter);
+                });
+
+                buildStreamerBotUI();
+                applyCanvasDimensions();
+                populateInspector();
+                updateGeneratedUrl();
+            }
+
+            applyLayoutStyles();
+            update();
+            setInterval(update, 1000);
+        });
+    </script>
+</body>
+
+</html>
