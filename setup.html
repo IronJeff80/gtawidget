@@ -1225,7 +1225,6 @@
             const ammo = document.getElementById('guide-ammo');
 
             if (isVertical) {
-                // Adjust guide for TikTok/Shorts vertical canvases
                 minimap.style.left = '30px';
                 minimap.style.bottom = '220px';
                 minimap.style.width = '240px';
@@ -1497,7 +1496,7 @@
         }
 
         // ==========================================
-        // URL PARAMETER GENERATION
+        // URL PARAMETER GENERATION (Auto-Detects Filename)
         // ==========================================
         function updateGeneratedUrl() {
             if (IS_OBS_MODE) return;
@@ -1566,7 +1565,9 @@
                 if (actId) p.set(`act_${def.key}`, actId);
             });
 
-            document.getElementById('generated-url-box').innerText = `${base}customLayout.html?${p.toString()}`;
+            // Auto-detect current file name (defaults to setup.html)
+            const currentFile = window.location.pathname.split('/').pop() || 'setup.html';
+            document.getElementById('generated-url-box').innerText = `${base}${currentFile}?${p.toString()}`;
         }
 
         function copyObsUrl() {
@@ -2115,6 +2116,11 @@
                 applyCanvasDimensions();
                 populateInspector();
                 updateGeneratedUrl();
+            } else {
+                // In OBS Mode, ensure canvas matches configured resolution
+                const canvas = document.getElementById('overlay-canvas');
+                canvas.style.width = layout.canvas.w + 'px';
+                canvas.style.height = layout.canvas.h + 'px';
             }
 
             applyLayoutStyles();
