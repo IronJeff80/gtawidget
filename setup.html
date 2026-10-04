@@ -1240,13 +1240,13 @@
             },
             icons: {
                 show: urlParams.get('iShow') !== '0',
-                x: parseInt(urlParams.get('iX') ?? 1580, 10),
+                x: parseInt(urlParams.get('iX') ?? 1368, 10),
                 y: parseInt(urlParams.get('iY') ?? 265, 10),
                 scale: parseFloat(urlParams.get('iS') ?? 1),
                 width: 260,
                 dir: urlParams.get('iD') ?? 'h',
                 align: urlParams.get('iA') ?? 'right',
-                vAlign: 'top',
+                vAlign: urlParams.get('iV') ?? 'top',
                 filter: urlParams.get('iconFilter') ?? 'all'
             },
             timers: {
@@ -1257,7 +1257,7 @@
                 width: parseInt(urlParams.get('tW') ?? 260, 10),
                 dir: urlParams.get('tD') ?? 'v',
                 align: urlParams.get('tA') ?? 'right',
-                vAlign: 'top',
+                vAlign: urlParams.get('tV') ?? 'top',
                 showLantern: (urlParams.get('showLantern') ?? urlParams.get('ShowPumpkins') ?? 'true').toLowerCase() !== 'false',
                 showSasquatch: urlParams.get('showSasquatch') !== 'false',
                 showSurvival: urlParams.get('showSurvival') !== 'false',
@@ -1674,7 +1674,7 @@
             modClock.style.alignItems = alignMap[c.align];
             document.getElementById('main-widget').style.minWidth = `${c.width}px`;
 
-            // 2. Icons
+            // 2. Icons (Fixed 484px max-span track keeps Center, Right & Bottom-Up alignments locked as icons spawn/despawn)
             const ic = layout.icons;
             const modIcons = document.getElementById('mod-icons');
             const eventBar = document.getElementById('event-bar');
@@ -1686,12 +1686,16 @@
 
             if (ic.dir === 'v') {
                 eventBar.style.flexDirection = ic.vAlign === 'bottom' ? 'column-reverse' : 'column';
+                eventBar.style.justifyContent = 'flex-start';
                 eventBar.style.alignItems = alignMap[ic.align];
-                eventBar.style.width = 'auto';
+                eventBar.style.width = '64px';
+                eventBar.style.minHeight = '484px';
             } else {
                 eventBar.style.flexDirection = 'row';
                 eventBar.style.justifyContent = alignMap[ic.align];
-                eventBar.style.width = 'auto';
+                eventBar.style.alignItems = 'center';
+                eventBar.style.width = '484px';
+                eventBar.style.minHeight = '64px';
             }
 
             // 3. Timers
@@ -1843,7 +1847,7 @@
 
         function resetPositions() {
             layout.clock = { show: true, x: 1580, y: 150, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top' };
-            layout.icons = { show: true, x: 1580, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
+            layout.icons = { show: true, x: 1368, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
             layout.timers = { show: true, x: 1580, y: 360, scale: 1, width: 260, dir: 'v', align: 'right', vAlign: 'top', showLantern: true, showSasquatch: true, showSurvival: true, showNextWeather: true };
             populateInspector();
             applyLayoutStyles();
