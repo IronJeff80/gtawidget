@@ -19,6 +19,7 @@
             --ui-card: #212631;
             --ui-border: #2e3545;
             --ui-accent: #ff8c00;
+            --ui-cyan: #00e5ff;
             --ui-green: #2ecc71;
             --ui-text: #f0f2f5;
             --ui-muted: #9ba3b5;
@@ -50,7 +51,9 @@
         body.obs-mode .studio-toolbar,
         body.obs-mode .settings-pane,
         body.obs-mode .hud-guide,
-        body.obs-mode .mod-handle {
+        body.obs-mode .mod-handle,
+        body.obs-mode .resize-handle,
+        body.obs-mode .snap-guide {
             display: none !important;
         }
 
@@ -175,6 +178,28 @@
             padding: 10px;
         }
 
+        /* Magnetic Alignment Snap Guides */
+        .snap-guide {
+            position: absolute;
+            background: var(--ui-cyan);
+            box-shadow: 0 0 8px var(--ui-cyan);
+            pointer-events: none;
+            z-index: 50;
+            display: none;
+        }
+
+        .snap-guide.vertical {
+            top: 0;
+            bottom: 0;
+            width: 2px;
+        }
+
+        .snap-guide.horizontal {
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
         /* Draggable Modules */
         .draggable-module {
             position: absolute;
@@ -184,6 +209,7 @@
             flex-direction: column;
             padding: 6px;
             border-radius: 12px;
+            transform-origin: top left;
         }
 
         body.studio-mode .draggable-module {
@@ -218,6 +244,27 @@
             pointer-events: none;
             letter-spacing: 0.4px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Corner Resize Handle (Bottom-Right of each module) */
+        .resize-handle {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            right: -8px;
+            bottom: -8px;
+            background: var(--ui-accent);
+            border: 2px solid #ffffff;
+            border-radius: 4px;
+            cursor: nwse-resize;
+            z-index: 25;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+            transition: transform 0.1s ease, background 0.15s ease;
+        }
+
+        .resize-handle:hover {
+            transform: scale(1.25);
+            background: var(--ui-cyan);
         }
 
         /* Widgets Styling */
@@ -568,6 +615,11 @@
             font-weight: 700;
             border-radius: 5px;
             cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .pill-btn:hover {
+            color: var(--ui-text);
         }
 
         .pill-btn.active {
@@ -800,10 +852,11 @@
         <div class="studio-toolbar">
             <div class="toolbar-group">
                 <span id="canvas-label" style="font-weight: 800; color: var(--ui-accent);">1920 × 1080 CANVAS</span>
-                <span style="color: var(--ui-muted);">Drag any module to reposition</span>
+                <span style="color: var(--ui-muted);">Drag to move • Drag corner square to scale</span>
             </div>
             <div class="toolbar-group">
-                <button class="tb-btn active" id="btn-hud" onclick="toggleHudGuide(this)">🎮 Safe Area Guide</button>
+                <button class="tb-btn active" id="btn-snap" onclick="toggleSnapping(this)">🧲 Snap: ON</button>
+                <button class="tb-btn active" id="btn-hud" onclick="toggleHudGuide(this)">🎮 Safe Area</button>
                 <button class="tb-btn active" onclick="setCanvasBg('checker', this)">Grid</button>
                 <button class="tb-btn" onclick="setCanvasBg('dark', this)">Dark</button>
                 <button class="tb-btn" onclick="setCanvasBg('ls', this)">Sunset</button>
@@ -813,6 +866,10 @@
 
         <div class="stage-viewport" id="stage-viewport">
             <div id="overlay-canvas" class="canvas-bg-checker">
+
+                <!-- Magnetic Alignment Snap Guide Lines -->
+                <div id="snap-guide-v" class="snap-guide vertical"></div>
+                <div id="snap-guide-h" class="snap-guide horizontal"></div>
 
                 <!-- HUD / Safe Area Guides -->
                 <div class="hud-guide" id="guide-minimap" style="left: 34px; bottom: 36px; width: 290px; height: 185px;">
@@ -825,6 +882,7 @@
                 <!-- MODULE 1: CLOCK & WEATHER -->
                 <div id="mod-clock" class="draggable-module selected-module" onmousedown="startDrag(event, 'clock')">
                     <div class="mod-handle">1. Clock & Weather</div>
+                    <div class="resize-handle" title="Drag to scale module" onmousedown="startResize(event, 'clock')"></div>
                     <div id="main-widget" class="widget-main">
                         <div class="weather-container" id="main-weather-container">
                             <img id="weather-icon" src="icons/clear-day.png" class="weather-icon">
@@ -840,12 +898,14 @@
                 <!-- MODULE 2: EVENT ICONS -->
                 <div id="mod-icons" class="draggable-module" onmousedown="startDrag(event, 'icons')">
                     <div class="mod-handle">2. Event Icons</div>
+                    <div class="resize-handle" title="Drag to scale module" onmousedown="startResize(event, 'icons')"></div>
                     <div class="event-bar" id="event-bar"></div>
                 </div>
 
                 <!-- MODULE 3: TIMERS -->
                 <div id="mod-timers" class="draggable-module" onmousedown="startDrag(event, 'timers')">
                     <div class="mod-handle">3. Event Timers</div>
+                    <div class="resize-handle" title="Drag to scale module" onmousedown="startResize(event, 'timers')"></div>
                     <div class="timers-wrapper" id="timers-wrapper">
                         <div id="lantern-box" class="info-box">
                             <img src="icons/halloween.png" class="box-icon">
@@ -924,7 +984,7 @@
                 </div>
 
                 <div class="control-row">
-                    <div class="control-label">Coordinates on Canvas</div>
+                    <div class="control-label">Coordinates & Quick Canvas Centering</div>
                     <div class="xy-grid">
                         <div class="num-input-box">
                             <label>X (px)</label>
@@ -935,11 +995,15 @@
                             <input type="number" id="mod-y" min="0" step="5" oninput="onCoordInput()">
                         </div>
                     </div>
+                    <div class="pill-group" style="margin-top: 8px;">
+                        <button class="pill-btn" onclick="centerSelectedModule('h')">↔ Center Horizontally</button>
+                        <button class="pill-btn" onclick="centerSelectedModule('v')">↕ Center Vertically</button>
+                    </div>
                 </div>
 
                 <div class="control-row">
                     <div class="control-label">
-                        <span>Module Scale</span>
+                        <span>Module Scale (or drag bottom-right corner)</span>
                         <span class="val-badge" id="mod-scale-label">100%</span>
                     </div>
                     <input type="range" id="mod-scale" min="0.4" max="2.5" step="0.05" value="1" oninput="onScaleInput(this.value)">
@@ -1168,7 +1232,7 @@
             },
             icons: {
                 show: urlParams.get('iShow') !== '0',
-                x: parseInt(urlParams.get('iX') ?? 1370, 10),
+                x: parseInt(urlParams.get('iX') ?? 1580, 10),
                 y: parseInt(urlParams.get('iY') ?? 265, 10),
                 scale: parseFloat(urlParams.get('iS') ?? 1),
                 width: 260,
@@ -1288,16 +1352,107 @@
         window.addEventListener('resize', fitStageViewport);
 
         // ==========================================
-        // DRAG & DROP LOGIC
+        // DRAG, CORNER RESIZE, CENTER & SNAP LOGIC
         // ==========================================
         let dragTarget = null;
+        let resizeTarget = null;
         let dragStartX = 0;
         let dragStartY = 0;
         let modOriginX = 0;
         let modOriginY = 0;
+        let startScale = 1;
+        let startBoxW = 260;
+        let snapEnabled = true;
+        const SNAP_THRESHOLD = 12; // Pixels in canvas space
 
-        function startDrag(e, modKey) {
+        function toggleSnapping(btn) {
+            snapEnabled = !snapEnabled;
+            btn.classList.toggle('active', snapEnabled);
+            btn.innerText = snapEnabled ? '🧲 Snap: ON' : '🧲 Snap: OFF';
+        }
+
+        // Get actual scaled bounding width & height of a module on the canvas
+        function getModuleBounds(modKey) {
+            const el = document.getElementById('mod-' + modKey);
+            const m = layout[modKey];
+            const w = (el ? el.offsetWidth : 260) * m.scale;
+            const h = (el ? el.offsetHeight : 100) * m.scale;
+            return {
+                left: m.x,
+                top: m.y,
+                right: m.x + w,
+                bottom: m.y + h,
+                centerX: m.x + w / 2,
+                centerY: m.y + h / 2,
+                width: w,
+                height: h
+            };
+        }
+
+        // Center the currently selected module horizontally or vertically on the canvas
+        function centerSelectedModule(axis) {
+            const b = getModuleBounds(selectedMod);
+            const guideV = document.getElementById('snap-guide-v');
+            const guideH = document.getElementById('snap-guide-h');
+
+            if (axis === 'h') {
+                layout[selectedMod].x = Math.round((layout.canvas.w - b.width) / 2);
+                guideV.style.left = `${Math.round(layout.canvas.w / 2)}px`;
+                guideV.style.display = 'block';
+                setTimeout(() => { guideV.style.display = 'none'; }, 700);
+            } else if (axis === 'v') {
+                layout[selectedMod].y = Math.round((layout.canvas.h - b.height) / 2);
+                guideH.style.top = `${Math.round(layout.canvas.h / 2)}px`;
+                guideH.style.display = 'block';
+                setTimeout(() => { guideH.style.display = 'none'; }, 700);
+            }
+
+            populateInspector();
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        // Corner Drag-to-Scale
+        function startResize(e, modKey) {
             if (IS_OBS_MODE) return;
+            e.stopPropagation(); // Prevent triggering position drag
+            selectModule(modKey);
+            resizeTarget = modKey;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            startScale = layout[modKey].scale;
+            const el = document.getElementById('mod-' + modKey);
+            startBoxW = Math.max(80, (el ? el.offsetWidth : 260) * startScale);
+
+            window.addEventListener('mousemove', onResizeMove);
+            window.addEventListener('mouseup', onResizeEnd);
+        }
+
+        function onResizeMove(e) {
+            if (!resizeTarget) return;
+            const dx = (e.clientX - dragStartX) / canvasZoom;
+            const dy = (e.clientY - dragStartY) / canvasZoom;
+            const delta = Math.max(dx, dy);
+
+            const rawScale = startScale * ((startBoxW + delta) / startBoxW);
+            const newScale = Math.round(Math.max(0.4, Math.min(2.5, rawScale)) * 20) / 20;
+            layout[resizeTarget].scale = newScale;
+
+            document.getElementById('mod-scale').value = newScale;
+            document.getElementById('mod-scale-label').innerText = `${Math.round(newScale * 100)}%`;
+            applyLayoutStyles();
+            updateGeneratedUrl();
+        }
+
+        function onResizeEnd() {
+            resizeTarget = null;
+            window.removeEventListener('mousemove', onResizeMove);
+            window.removeEventListener('mouseup', onResizeEnd);
+        }
+
+        // Drag-to-Move with Magnetic Snapping
+        function startDrag(e, modKey) {
+            if (IS_OBS_MODE || e.target.classList.contains('resize-handle')) return;
             selectModule(modKey);
             dragTarget = modKey;
             dragStartX = e.clientX;
@@ -1313,17 +1468,84 @@
             if (!dragTarget) return;
             const dx = Math.round((e.clientX - dragStartX) / canvasZoom);
             const dy = Math.round((e.clientY - dragStartY) / canvasZoom);
-            layout[dragTarget].x = Math.max(0, Math.min(layout.canvas.w - 40, modOriginX + dx));
-            layout[dragTarget].y = Math.max(0, Math.min(layout.canvas.h - 40, modOriginY + dy));
 
-            document.getElementById('mod-x').value = layout[dragTarget].x;
-            document.getElementById('mod-y').value = layout[dragTarget].y;
+            let nextX = Math.max(0, Math.min(layout.canvas.w - 40, modOriginX + dx));
+            let nextY = Math.max(0, Math.min(layout.canvas.h - 40, modOriginY + dy));
+
+            const guideV = document.getElementById('snap-guide-v');
+            const guideH = document.getElementById('snap-guide-h');
+            guideV.style.display = 'none';
+            guideH.style.display = 'none';
+
+            if (snapEnabled && !e.altKey) { // Hold Alt to temporarily bypass snapping
+                const cur = getModuleBounds(dragTarget);
+                const w = cur.width;
+                const h = cur.height;
+
+                // X-Axis Snap Candidates (Canvas Center + Other Visible Modules' Left, Center, Right)
+                const xTargets = [{ val: layout.canvas.w / 2 }];
+                // Y-Axis Snap Candidates (Canvas Center + Other Visible Modules' Top, Center, Bottom)
+                const yTargets = [{ val: layout.canvas.h / 2 }];
+
+                ['clock', 'icons', 'timers'].forEach(otherKey => {
+                    if (otherKey === dragTarget || !layout[otherKey].show) return;
+                    const ob = getModuleBounds(otherKey);
+                    xTargets.push({ val: ob.left }, { val: ob.centerX }, { val: ob.right });
+                    yTargets.push({ val: ob.top }, { val: ob.centerY }, { val: ob.bottom });
+                });
+
+                // Check Left, CenterX, and Right edges of dragged module against xTargets
+                const myXEdges = [
+                    { offset: 0, pos: nextX },
+                    { offset: w / 2, pos: nextX + w / 2 },
+                    { offset: w, pos: nextX + w }
+                ];
+
+                for (const edge of myXEdges) {
+                    for (const t of xTargets) {
+                        if (Math.abs(edge.pos - t.val) <= SNAP_THRESHOLD) {
+                            nextX = Math.round(t.val - edge.offset);
+                            guideV.style.left = `${Math.round(t.val)}px`;
+                            guideV.style.display = 'block';
+                            break;
+                        }
+                    }
+                    if (guideV.style.display === 'block') break;
+                }
+
+                // Check Top, CenterY, and Bottom edges of dragged module against yTargets
+                const myYEdges = [
+                    { offset: 0, pos: nextY },
+                    { offset: h / 2, pos: nextY + h / 2 },
+                    { offset: h, pos: nextY + h }
+                ];
+
+                for (const edge of myYEdges) {
+                    for (const t of yTargets) {
+                        if (Math.abs(edge.pos - t.val) <= SNAP_THRESHOLD) {
+                            nextY = Math.round(t.val - edge.offset);
+                            guideH.style.top = `${Math.round(t.val)}px`;
+                            guideH.style.display = 'block';
+                            break;
+                        }
+                    }
+                    if (guideH.style.display === 'block') break;
+                }
+            }
+
+            layout[dragTarget].x = nextX;
+            layout[dragTarget].y = nextY;
+
+            document.getElementById('mod-x').value = nextX;
+            document.getElementById('mod-y').value = nextY;
             applyLayoutStyles();
             updateGeneratedUrl();
         }
 
         function onDragEnd() {
             dragTarget = null;
+            document.getElementById('snap-guide-v').style.display = 'none';
+            document.getElementById('snap-guide-h').style.display = 'none';
             window.removeEventListener('mousemove', onDragMove);
             window.removeEventListener('mouseup', onDragEnd);
         }
@@ -1439,7 +1661,6 @@
         // ==========================================
         function applyLayoutStyles() {
             const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
-            const originMap = { left: 'left', center: 'center', right: 'right' };
 
             // 1. Clock
             const c = layout.clock;
@@ -1447,7 +1668,7 @@
             modClock.style.display = c.show ? 'flex' : 'none';
             modClock.style.left = `${c.x}px`;
             modClock.style.top = `${c.y}px`;
-            modClock.style.transformOrigin = `top ${originMap[c.align]}`;
+            modClock.style.transformOrigin = 'top left';
             modClock.style.transform = `scale(${c.scale})`;
             modClock.style.alignItems = alignMap[c.align];
             document.getElementById('main-widget').style.minWidth = `${c.width}px`;
@@ -1459,7 +1680,7 @@
             modIcons.style.display = ic.show ? 'flex' : 'none';
             modIcons.style.left = `${ic.x}px`;
             modIcons.style.top = `${ic.y}px`;
-            modIcons.style.transformOrigin = `${ic.vAlign === 'bottom' ? 'bottom' : 'top'} ${originMap[ic.align]}`;
+            modIcons.style.transformOrigin = 'top left';
             modIcons.style.transform = `scale(${ic.scale})`;
 
             if (ic.dir === 'v') {
@@ -1479,7 +1700,7 @@
             modTimers.style.display = tm.show ? 'flex' : 'none';
             modTimers.style.left = `${tm.x}px`;
             modTimers.style.top = `${tm.y}px`;
-            modTimers.style.transformOrigin = `${tm.vAlign === 'bottom' ? 'bottom' : 'top'} ${originMap[tm.align]}`;
+            modTimers.style.transformOrigin = 'top left';
             modTimers.style.transform = `scale(${tm.scale})`;
 
             if (tm.dir === 'h') {
@@ -1592,14 +1813,14 @@
         }
 
         function setCanvasBg(mode, btn) {
-            btn.parentElement.querySelectorAll('.tb-btn:not(#btn-hud)').forEach(b => b.classList.remove('active'));
+            btn.parentElement.querySelectorAll('.tb-btn:not(#btn-hud):not(#btn-snap)').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('overlay-canvas').className = 'canvas-bg-' + mode;
         }
 
         function resetPositions() {
             layout.clock = { show: true, x: 1580, y: 150, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top' };
-            layout.icons = { show: true, x: 1370, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
+            layout.icons = { show: true, x: 1580, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
             layout.timers = { show: true, x: 1580, y: 360, scale: 1, width: 260, dir: 'v', align: 'right', vAlign: 'top', showLantern: true, showSasquatch: true, showSurvival: true, showNextWeather: true };
             populateInspector();
             applyLayoutStyles();
