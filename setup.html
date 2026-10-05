@@ -1197,6 +1197,7 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const IS_OBS_MODE = urlParams.get('obs') === '1' || urlParams.get('obs') === 'true';
+        const STORAGE_KEY = 'gtaWidget_studioLayout_v1';
 
         if (IS_OBS_MODE) {
             document.body.classList.remove('studio-mode');
@@ -1214,7 +1215,7 @@
             { key: 'hwslasher', label: '🎃 Halloween Slasher',     season: 'Halloween' },
             { key: 'possessed', label: '🐾 Possessed Animal',      season: 'Halloween' },
             { key: 'cerberus',  label: '🚛 Cerberus',              season: 'Halloween' },
-            { key: 'lantern',   label: '🕯️ Jack O\' Lantern Daily Reset (06:00 UTC)', season: 'Halloween' },
+            { key: 'lantern',   label: '🕯️️ Jack O\' Lantern Daily Reset (06:00 UTC)', season: 'Halloween' },
             { key: 'survival',  label: '💨 Stoner Survival',       season: '420 Week' },
             { key: 'yeti',      label: '❄️ Yeti (21:00)',          season: 'Christmas' },
             { key: 'gooch',     label: '🎁 The Gooch',             season: 'Christmas' }
@@ -1278,6 +1279,29 @@
         SB_EVENT_DEFINITIONS.forEach(def => {
             layout.sbot.actions[def.key] = (urlParams.get(`act_${def.key}`) || '').trim();
         });
+
+        // Restore saved settings from localStorage if in Studio Mode without URL overrides
+        if (!IS_OBS_MODE && window.location.search === '') {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.canvas) Object.assign(layout.canvas, parsed.canvas);
+                    if (parsed.clock) Object.assign(layout.clock, parsed.clock);
+                    if (parsed.icons) Object.assign(layout.icons, parsed.icons);
+                    if (parsed.timers) Object.assign(layout.timers, parsed.timers);
+                    if (parsed.global) Object.assign(layout.global, parsed.global);
+                    if (parsed.sbot) {
+                        layout.sbot.host = parsed.sbot.host ?? layout.sbot.host;
+                        layout.sbot.port = parsed.sbot.port ?? layout.sbot.port;
+                        layout.sbot.sendChat = parsed.sbot.sendChat ?? layout.sbot.sendChat;
+                        if (parsed.sbot.actions) Object.assign(layout.sbot.actions, parsed.sbot.actions);
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load saved studio settings:', e);
+            }
+        }
 
         let selectedMod = 'clock';
         let canvasZoom = 1;
@@ -1722,7 +1746,7 @@
         }
 
         // ==========================================
-        // URL PARAMETER GENERATION (Auto-Detects Filename)
+        // URL PARAMETER GENERATION & LOCAL STORAGE SAVE
         // ==========================================
         function updateGeneratedUrl() {
             if (IS_OBS_MODE) return;
@@ -1793,6 +1817,11 @@
 
             const currentFile = window.location.pathname.split('/').pop() || 'setup.html';
             document.getElementById('generated-url-box').innerText = `${base}${currentFile}?${p.toString()}`;
+
+            // Persist user layout & settings to localStorage
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+            } catch (e) {}
         }
 
         function copyObsUrl() {
@@ -1846,6 +1875,9 @@
         }
 
         function resetPositions() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {}
             layout.clock = { show: true, x: 1580, y: 150, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top' };
             layout.icons = { show: true, x: 1368, y: 265, scale: 1, width: 260, dir: 'h', align: 'right', vAlign: 'top', filter: 'all' };
             layout.timers = { show: true, x: 1580, y: 360, scale: 1, width: 260, dir: 'v', align: 'right', vAlign: 'top', showLantern: true, showSasquatch: true, showSurvival: true, showNextWeather: true };
@@ -2001,7 +2033,7 @@
                 // { key: "lsslasher", name: "LS Slasher", icon: "slasher-ls.png", startH: 19, endH: 5, msg: "🔪 Slasher stalking LS...", notified: false },
                 { key: "hwslasher", name: "Halloween Slasher", icon: "slasher-halloween.png", startH: 1, endH: 6, msg: "🎃 Halloween Slasher arrived!", notified: false },
                 { key: "christine", name: "Christine", icon: "christine.webp", startH: 21, endH: 5, msg: "🚗 Phantom Car (Christine) is hunting!", notified: false },
-                { key: "ghosts", name: "Ghosts Exposed", icon: "ghost.webp", startH: 21, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
+                { key: "ghosts", name: "Ghosts Exposed", icon: "ghost.webp", startH: 20, endH: 5, msg: "👻 Ghosts Exposed locations are active!", notified: false },
                 { key: "ufo", name: "UFO Sightings", icon: "ufo.webp", phase: "UFO", startH: 22, endH: 4, hwStartH: 19.5, hwEndH: 6.5, msg: "🛸 UFOs spotted in the skies!", notified: false }
             ]
         };
